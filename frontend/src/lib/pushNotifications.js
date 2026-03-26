@@ -1,16 +1,40 @@
-import { Capacitor } from '@capacitor/core';
+/**
+ * Push Notifications - Web-compatible version
+ * Uses Capacitor for native platforms, gracefully degrades on web
+ */
 
+let Capacitor = null;
 let PushNotifications = null;
 let App = null;
+let isNative = false;
 
-// Conditionally import Capacitor plugins only on native platforms
-if (Capacitor.isNativePlatform()) {
-  PushNotifications = require('@capacitor/push-notifications').PushNotifications;
-  App = require('@capacitor/app').App;
+// Try to load Capacitor dynamically
+try {
+  const capacitorCore = require('@capacitor/core');
+  Capacitor = capacitorCore.Capacitor;
+  isNative = Capacitor?.isNativePlatform?.() || false;
+  
+  if (isNative) {
+    try {
+      PushNotifications = require('@capacitor/push-notifications').PushNotifications;
+    } catch (e) {
+      console.log('[Push] Push notifications plugin not available');
+    }
+    try {
+      App = require('@capacitor/app').App;
+    } catch (e) {
+      console.log('[Push] App plugin not available');
+    }
+  }
+} catch (e) {
+  console.log('[Push] Capacitor not available, running in web mode');
 }
 
 export const initPushNotifications = async () => {
-  if (!PushNotifications) return; // Skip on web
+  if (!isNative || !PushNotifications) {
+    console.log('[Push] Web mode - push notifications disabled');
+    return;
+  }
   
   try {
     // Request permissions
@@ -22,7 +46,6 @@ export const initPushNotifications = async () => {
     // Listen for registration token
     PushNotifications.addListener('registration', (token) => {
       console.log('Push registration token:', token.value);
-      // Save token to backend if needed
       localStorage.setItem('pushToken', token.value);
     });
 
@@ -48,7 +71,7 @@ export const initPushNotifications = async () => {
 };
 
 export const setBadgeCount = async (count) => {
-  if (!App) return; // Skip on web
+  if (!isNative || !App) return;
   
   try {
     await App.setBadgeCount({ count });
@@ -58,7 +81,7 @@ export const setBadgeCount = async (count) => {
 };
 
 export const updateBadgeCount = async (count = 1) => {
-  if (!App) return; // Skip on web
+  if (!isNative || !App) return;
   
   try {
     const current = await App.getBadgeCount();
@@ -69,7 +92,7 @@ export const updateBadgeCount = async (count = 1) => {
 };
 
 export const clearBadgeCount = async () => {
-  if (!App) return; // Skip on web
+  if (!isNative || !App) return;
   
   try {
     await setBadgeCount(0);
