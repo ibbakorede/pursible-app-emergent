@@ -53,7 +53,7 @@ export default function Login() {
             <img src="/paysible_icon_white.svg" alt="Paysible" className="w-full h-full" />
           </div>
           <h1 className="text-3xl font-bold text-foreground mb-2">Paysible</h1>
-          <p className="text-muted-foreground">Your Global Money App</p>
+          <p className="text-muted-foreground text-sm">Send, Receive, Convert & Withdraw — Instantly</p>
         </div>
 
         {/* Card */}
