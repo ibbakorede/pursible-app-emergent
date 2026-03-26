@@ -1,0 +1,1269 @@
+"""
+Paysible Backend - FastAPI Server
+Replicates Base44 cloud functions for Emergent platform
+"""
+from fastapi import FastAPI, APIRouter, HTTPException, Depends, Query, Request
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from dotenv import load_dotenv
+from starlette.middleware.cors import CORSMiddleware
+from motor.motor_asyncio import AsyncIOMotorClient
+import os
+import logging
+import hashlib
+import hmac
+from pathlib import Path
+from pydantic import BaseModel, Field, EmailStr, ConfigDict
+from typing import List, Optional, Dict, Any
+import uuid
+from datetime import datetime, timezone, timedelta
+import jwt
+import bcrypt
+import httpx
+
+ROOT_DIR = Path(__file__).parent
+load_dotenv(ROOT_DIR / '.env')
+
+# MongoDB connection
+mongo_url = os.environ['MONGO_URL']
+client = AsyncIOMotorClient(mongo_url)
+db = client[os.environ['DB_NAME']]
+
+# JWT Settings
+JWT_SECRET = os.environ.get('JWT_SECRET', 'paysible-secret-key-change-in-production')
+JWT_ALGORITHM = 'HS256'
+JWT_EXPIRATION_HOURS = 24 * 7  # 7 days
+
+# Third-party API Keys
+FLUTTERWAVE_SECRET_KEY = os.environ.get('FLUTTERWAVE_SECRET_KEY', '')
+FLUTTERWAVE_PUBLIC_KEY = os.environ.get('FLUTTERWAVE_PUBLIC_KEY', '')
+DOJAH_API_KEY = os.environ.get('DOJAH_API_KEY', '')
+DOJAH_SECRET_KEY = os.environ.get('DOJAH_SECRET_KEY', '')
+DOJAH_APP_ID = os.environ.get('DOJAH_APP_ID', '')
+BRIDGE_API_KEY = os.environ.get('BRIDGE_API_KEY', '')
+WEBHOOK_SECRET = os.environ.get('WEBHOOK_SECRET', '')
+
+# API Base URLs
+FLW_BASE = "https://api.flutterwave.com/v3"
+DOJAH_BASE = "https://api.dojah.io"
+BRIDGE_BASE = "https://api.bridge.xyz/v0"
+
+# Create the main app
+app = FastAPI(title="Paysible API", version="1.0.0")
+
+# Create routers
+api_router = APIRouter(prefix="/api")
+auth_router = APIRouter(prefix="/auth", tags=["Authentication"])
+entities_router = APIRouter(prefix="/entities", tags=["Entities"])
+functions_router = APIRouter(prefix="/functions", tags=["Functions"])
+webhooks_router = APIRouter(prefix="/webhooks", tags=["Webhooks"])
+
+security = HTTPBearer(auto_error=False)
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# PYDANTIC MODELS
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class UserCreate(BaseModel):
+    email: EmailStr
+    password: str
+    full_name: Optional[str] = None
+
+class UserLogin(BaseModel):
+    email: EmailStr
+    password: str
+
+class UserResponse(BaseModel):
+    id: str
+    email: str
+    full_name: Optional[str] = None
+    kyc_status: Optional[str] = None
+    created_date: str
+    
+class TokenResponse(BaseModel):
+    token: str
+    user: UserResponse
+
+class KYCData(BaseModel):
+    full_name: str
+    date_of_birth: Optional[str] = None
+    nationality: Optional[str] = None
+    address: Optional[str] = None
+    bvn: Optional[str] = None
+    nin: Optional[str] = None
+    id_type: Optional[str] = None
+    id_number: Optional[str] = None
+    id_document_url: Optional[str] = None
+    selfie_url: Optional[str] = None
+
+class WithdrawRequest(BaseModel):
+    currency: str
+    amount: float
+    destination: Dict[str, Any]
+
+class SwapRequest(BaseModel):
+    fromCurrency: str
+    toCurrency: str
+    amount: float
+    confirmed: bool = False
+
+class BankVerifyRequest(BaseModel):
+    accountNumber: str
+    bankName: str
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# UTILITY FUNCTIONS
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def generate_id() -> str:
+    return str(uuid.uuid4())
+
+def get_timestamp() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+def hash_password(password: str) -> str:
+    return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+
+def verify_password(password: str, hashed: str) -> bool:
+    return bcrypt.checkpw(password.encode(), hashed.encode())
+
+def create_jwt_token(user_id: str, email: str) -> str:
+    payload = {
+        'sub': user_id,
+        'email': email,
+        'exp': datetime.now(timezone.utc) + timedelta(hours=JWT_EXPIRATION_HOURS),
+        'iat': datetime.now(timezone.utc)
+    }
+    return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
+
+def decode_jwt_token(token: str) -> Dict:
+    try:
+        return jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Token has expired")
+    except jwt.InvalidTokenError:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    if not credentials:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    payload = decode_jwt_token(credentials.credentials)
+    user = await db.users.find_one({"id": payload['sub']}, {"_id": 0})
+    if not user:
+        raise HTTPException(status_code=401, detail="User not found")
+    return user
+
+async def get_optional_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    if not credentials:
+        return None
+    try:
+        payload = decode_jwt_token(credentials.credentials)
+        user = await db.users.find_one({"id": payload['sub']}, {"_id": 0})
+        return user
+    except:
+        return None
+
+async def log_error(function_name: str, error_message: str, user_email: str = None, provider: str = None):
+    """Log errors to AppError collection"""
+    try:
+        await db.app_errors.insert_one({
+            "id": generate_id(),
+            "function_name": function_name,
+            "error_message": error_message,
+            "user_email": user_email,
+            "provider": provider,
+            "created_date": get_timestamp()
+        })
+    except:
+        pass
+
+# Nigerian bank codes
+BANK_CODES = {
+    'Access Bank': '044',
+    'Carbon': '565',
+    'Citibank Nigeria': '023',
+    'Ecobank Nigeria': '050',
+    'Fidelity Bank': '070',
+    'First Bank of Nigeria': '011',
+    'First City Monument Bank (FCMB)': '030',
+    'Guaranty Trust Bank (GTBank)': '058',
+    'Heritage Bank': '051',
+    'Jaiz Bank': '089',
+    'Keystone Bank': '082',
+    'Kuda Bank': '090',
+    'Moniepoint': '999993',
+    'OPay': '999991',
+    'PalmPay': '999992',
+    'Parallex Bank': '526',
+    'Polaris Bank': '076',
+    'Providus Bank': '101',
+    'Stanbic IBTC Bank': '039',
+    'Standard Chartered Bank': '068',
+    'Sterling Bank': '232',
+    'SunTrust Bank': '100',
+    'Union Bank': '032',
+    'United Bank for Africa (UBA)': '033',
+    'Unity Bank': '215',
+    'Wema Bank': '035',
+    'Zenith Bank': '057',
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# AUTHENTICATION ROUTES
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@auth_router.post("/register", response_model=TokenResponse)
+async def register(data: UserCreate):
+    """Register a new user"""
+    # Check if user exists
+    existing = await db.users.find_one({"email": data.email})
+    if existing:
+        raise HTTPException(status_code=400, detail="Email already registered")
+    
+    user_id = generate_id()
+    user_doc = {
+        "id": user_id,
+        "email": data.email,
+        "password_hash": hash_password(data.password),
+        "full_name": data.full_name,
+        "kyc_status": None,
+        "created_date": get_timestamp()
+    }
+    await db.users.insert_one(user_doc)
+    
+    # Create initial wallets for the user
+    currencies = ["USD", "USDC", "USDT", "NGN"]
+    for currency in currencies:
+        await db.wallets.insert_one({
+            "id": generate_id(),
+            "user_email": data.email,
+            "currency": currency,
+            "available_balance": 0,
+            "pending_balance": 0,
+            "created_date": get_timestamp()
+        })
+    
+    # Create balance snapshot
+    await db.balances.insert_one({
+        "id": generate_id(),
+        "user_email": data.email,
+        "usd": 0,
+        "usdc": 0,
+        "usdt": 0,
+        "ngn": 0,
+        "last_updated": get_timestamp()
+    })
+    
+    token = create_jwt_token(user_id, data.email)
+    return TokenResponse(
+        token=token,
+        user=UserResponse(
+            id=user_id,
+            email=data.email,
+            full_name=data.full_name,
+            kyc_status=None,
+            created_date=user_doc["created_date"]
+        )
+    )
+
+@auth_router.post("/login", response_model=TokenResponse)
+async def login(data: UserLogin):
+    """Login user"""
+    user = await db.users.find_one({"email": data.email}, {"_id": 0})
+    if not user or not verify_password(data.password, user.get("password_hash", "")):
+        raise HTTPException(status_code=401, detail="Invalid email or password")
+    
+    token = create_jwt_token(user["id"], user["email"])
+    return TokenResponse(
+        token=token,
+        user=UserResponse(
+            id=user["id"],
+            email=user["email"],
+            full_name=user.get("full_name"),
+            kyc_status=user.get("kyc_status"),
+            created_date=user.get("created_date", get_timestamp())
+        )
+    )
+
+@auth_router.get("/me", response_model=UserResponse)
+async def get_me(user: dict = Depends(get_current_user)):
+    """Get current user"""
+    return UserResponse(
+        id=user["id"],
+        email=user["email"],
+        full_name=user.get("full_name"),
+        kyc_status=user.get("kyc_status"),
+        created_date=user.get("created_date", get_timestamp())
+    )
+
+@auth_router.patch("/me")
+async def update_me(data: dict, user: dict = Depends(get_current_user)):
+    """Update current user profile"""
+    allowed_fields = ["full_name", "phone", "address"]
+    update_data = {k: v for k, v in data.items() if k in allowed_fields}
+    
+    if update_data:
+        await db.users.update_one(
+            {"id": user["id"]},
+            {"$set": update_data}
+        )
+    
+    updated_user = await db.users.find_one({"id": user["id"]}, {"_id": 0, "password_hash": 0})
+    return updated_user
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# GENERIC ENTITY ROUTES
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def get_collection_name(entity_name: str) -> str:
+    """Map entity names to collection names"""
+    return entity_name.lower().replace("-", "_")
+
+@entities_router.get("/{entity_name}")
+async def list_entities(
+    entity_name: str,
+    sort_by: Optional[str] = None,
+    limit: int = Query(100, le=1000),
+    user: dict = Depends(get_current_user)
+):
+    """List all entities of a type"""
+    collection = db[get_collection_name(entity_name)]
+    
+    # Build query - filter by user_email for user-specific entities
+    query = {}
+    user_specific = ["wallets", "transactions", "kyc_records", "bank_accounts", 
+                     "notifications", "balances", "rate_alerts", "goals", "referrals"]
+    if entity_name.lower() in user_specific:
+        query["user_email"] = user["email"]
+    
+    # Sort
+    sort_order = []
+    if sort_by:
+        if sort_by.startswith("-"):
+            sort_order = [(sort_by[1:], -1)]
+        else:
+            sort_order = [(sort_by, 1)]
+    
+    cursor = collection.find(query, {"_id": 0})
+    if sort_order:
+        cursor = cursor.sort(sort_order)
+    cursor = cursor.limit(limit)
+    
+    return await cursor.to_list(limit)
+
+@entities_router.get("/{entity_name}/filter")
+async def filter_entities(
+    entity_name: str,
+    request: Request,
+    sort_by: Optional[str] = None,
+    limit: Optional[int] = None,
+    user: dict = Depends(get_current_user)
+):
+    """Filter entities by criteria"""
+    collection = db[get_collection_name(entity_name)]
+    
+    # Get filter params from query string
+    query = {}
+    for key, value in request.query_params.items():
+        if key not in ["sort_by", "limit"]:
+            # Handle boolean strings
+            if value.lower() == "true":
+                query[key] = True
+            elif value.lower() == "false":
+                query[key] = False
+            else:
+                query[key] = value
+    
+    # Sort
+    sort_order = []
+    if sort_by:
+        if sort_by.startswith("-"):
+            sort_order = [(sort_by[1:], -1)]
+        else:
+            sort_order = [(sort_by, 1)]
+    
+    cursor = collection.find(query, {"_id": 0})
+    if sort_order:
+        cursor = cursor.sort(sort_order)
+    if limit:
+        cursor = cursor.limit(limit)
+    
+    return await cursor.to_list(limit or 1000)
+
+@entities_router.get("/{entity_name}/{entity_id}")
+async def get_entity(
+    entity_name: str,
+    entity_id: str,
+    user: dict = Depends(get_current_user)
+):
+    """Get a single entity by ID"""
+    collection = db[get_collection_name(entity_name)]
+    entity = await collection.find_one({"id": entity_id}, {"_id": 0})
+    if not entity:
+        raise HTTPException(status_code=404, detail="Entity not found")
+    return entity
+
+@entities_router.post("/{entity_name}")
+async def create_entity(
+    entity_name: str,
+    data: dict,
+    user: dict = Depends(get_current_user)
+):
+    """Create a new entity"""
+    collection = db[get_collection_name(entity_name)]
+    
+    entity_id = data.get("id") or generate_id()
+    doc = {
+        "id": entity_id,
+        **data,
+        "created_date": get_timestamp()
+    }
+    
+    # Auto-set user_email for user-specific entities
+    user_specific = ["wallets", "transactions", "kyc_records", "bank_accounts", 
+                     "notifications", "balances", "rate_alerts", "goals", "referrals"]
+    if entity_name.lower() in user_specific and "user_email" not in doc:
+        doc["user_email"] = user["email"]
+    
+    await collection.insert_one(doc)
+    doc.pop("_id", None)
+    return doc
+
+@entities_router.patch("/{entity_name}/{entity_id}")
+async def update_entity(
+    entity_name: str,
+    entity_id: str,
+    data: dict,
+    user: dict = Depends(get_current_user)
+):
+    """Update an entity"""
+    collection = db[get_collection_name(entity_name)]
+    
+    # Remove id and _id from update data
+    data.pop("id", None)
+    data.pop("_id", None)
+    
+    result = await collection.update_one(
+        {"id": entity_id},
+        {"$set": data}
+    )
+    
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Entity not found")
+    
+    updated = await collection.find_one({"id": entity_id}, {"_id": 0})
+    return updated
+
+@entities_router.delete("/{entity_name}/{entity_id}")
+async def delete_entity(
+    entity_name: str,
+    entity_id: str,
+    user: dict = Depends(get_current_user)
+):
+    """Delete an entity"""
+    collection = db[get_collection_name(entity_name)]
+    result = await collection.delete_one({"id": entity_id})
+    
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Entity not found")
+    
+    return {"success": True, "deleted_id": entity_id}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# CLOUD FUNCTIONS
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@functions_router.post("/getBalance")
+async def get_balance(user: dict = Depends(get_current_user)):
+    """Get user's wallet balances"""
+    try:
+        wallets = await db.wallets.find(
+            {"user_email": user["email"]}, 
+            {"_id": 0}
+        ).to_list(10)
+        
+        balance = {
+            "USD": 0,
+            "USDC": 0,
+            "USDT": 0,
+            "NGN": 0
+        }
+        
+        for wallet in wallets:
+            currency = wallet.get("currency", "").upper()
+            if currency in balance:
+                balance[currency] = wallet.get("available_balance", 0)
+        
+        # Update balance snapshot
+        await db.balances.update_one(
+            {"user_email": user["email"]},
+            {"$set": {
+                "usd": balance["USD"],
+                "usdc": balance["USDC"],
+                "usdt": balance["USDT"],
+                "ngn": balance["NGN"],
+                "last_updated": get_timestamp()
+            }},
+            upsert=True
+        )
+        
+        return {"success": True, "balance": balance}
+    except Exception as e:
+        await log_error("getBalance", str(e), user["email"])
+        raise HTTPException(status_code=500, detail="Unable to fetch balance")
+
+@functions_router.post("/submitKYC")
+async def submit_kyc(data: dict, user: dict = Depends(get_current_user)):
+    """Submit KYC verification"""
+    try:
+        kyc_data = data.get("kycData", {})
+        
+        if not kyc_data.get("full_name", "").strip():
+            raise HTTPException(status_code=400, detail="Full name is required")
+        
+        # Check for existing KYC record
+        existing = await db.kyc_records.find_one({"user_email": user["email"]})
+        
+        kyc_payload = {
+            "user_email": user["email"],
+            "full_name": kyc_data.get("full_name"),
+            "date_of_birth": kyc_data.get("date_of_birth"),
+            "nationality": kyc_data.get("nationality"),
+            "address": kyc_data.get("address"),
+            "bvn": kyc_data.get("bvn"),
+            "nin": kyc_data.get("nin"),
+            "id_type": kyc_data.get("id_type"),
+            "id_number": kyc_data.get("id_number"),
+            "id_document_url": kyc_data.get("id_document_url"),
+            "selfie_url": kyc_data.get("selfie_url"),
+            "status": "in_review",
+            "updated_date": get_timestamp()
+        }
+        
+        # In test mode (no Dojah keys), auto-approve
+        if not DOJAH_API_KEY or not DOJAH_SECRET_KEY:
+            kyc_payload["status"] = "approved"
+            kyc_payload["timeline"] = [
+                {"status": "in_review", "timestamp": get_timestamp(), "note": "Submitted for verification"},
+                {"status": "approved", "timestamp": get_timestamp(), "note": "Auto-approved (test mode)"}
+            ]
+            
+            # Update user KYC status
+            await db.users.update_one(
+                {"email": user["email"]},
+                {"$set": {"kyc_status": "verified"}}
+            )
+            
+            if existing:
+                await db.kyc_records.update_one({"id": existing["id"]}, {"$set": kyc_payload})
+            else:
+                kyc_payload["id"] = generate_id()
+                kyc_payload["created_date"] = get_timestamp()
+                await db.kyc_records.insert_one(kyc_payload)
+            
+            # Create notification
+            await db.notifications.insert_one({
+                "id": generate_id(),
+                "user_email": user["email"],
+                "title": "Identity Verified",
+                "message": "Your identity has been verified. You can now use all Paysible features.",
+                "type": "kyc",
+                "is_read": False,
+                "created_date": get_timestamp()
+            })
+            
+            return {
+                "success": True,
+                "approved": True,
+                "status": "approved",
+                "message": "Identity verified successfully (test mode)."
+            }
+        
+        # TODO: Implement actual Dojah verification
+        # For now, set to pending review
+        kyc_payload["timeline"] = [
+            {"status": "in_review", "timestamp": get_timestamp(), "note": "Submitted for verification"}
+        ]
+        
+        if existing:
+            await db.kyc_records.update_one({"id": existing["id"]}, {"$set": kyc_payload})
+        else:
+            kyc_payload["id"] = generate_id()
+            kyc_payload["created_date"] = get_timestamp()
+            await db.kyc_records.insert_one(kyc_payload)
+        
+        return {
+            "success": True,
+            "approved": False,
+            "status": "in_review",
+            "message": "Your documents are being reviewed."
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        await log_error("submitKYC", str(e), user["email"], "dojah")
+        raise HTTPException(status_code=500, detail="Verification could not be completed")
+
+@functions_router.post("/verifyBankAccount")
+async def verify_bank_account(data: BankVerifyRequest, user: dict = Depends(get_current_user)):
+    """Verify Nigerian bank account"""
+    try:
+        bank_code = BANK_CODES.get(data.bankName)
+        if not bank_code:
+            raise HTTPException(status_code=400, detail=f"Unrecognized bank: {data.bankName}")
+        
+        if len(data.accountNumber) != 10 or not data.accountNumber.isdigit():
+            raise HTTPException(status_code=400, detail="Account number must be exactly 10 digits")
+        
+        # If no Flutterwave key, return mock success for testing
+        if not FLUTTERWAVE_SECRET_KEY:
+            return {
+                "success": True,
+                "accountName": f"TEST USER - {data.accountNumber[-4:]}",
+                "verified": True,
+                "note": "Test mode - verification simulated"
+            }
+        
+        # Call Flutterwave API
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                f"{FLW_BASE}/accounts/resolve",
+                params={
+                    "account_number": data.accountNumber,
+                    "account_bank": bank_code
+                },
+                headers={
+                    "Authorization": f"Bearer {FLUTTERWAVE_SECRET_KEY}",
+                    "Content-Type": "application/json"
+                },
+                timeout=10.0
+            )
+            
+            result = response.json()
+            
+            if result.get("status") != "success" or not result.get("data", {}).get("account_name"):
+                raise HTTPException(
+                    status_code=400,
+                    detail="Account could not be verified. Please check the details."
+                )
+            
+            return {
+                "success": True,
+                "accountName": result["data"]["account_name"],
+                "verified": True
+            }
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        await log_error("verifyBankAccount", str(e), user["email"], "flutterwave")
+        raise HTTPException(status_code=500, detail="Verification unavailable")
+
+@functions_router.post("/withdraw")
+async def withdraw(data: WithdrawRequest, user: dict = Depends(get_current_user)):
+    """Process withdrawal"""
+    try:
+        # Check KYC
+        kyc = await db.kyc_records.find_one({"user_email": user["email"]})
+        if not kyc or kyc.get("status") != "approved":
+            return {
+                "success": False,
+                "kycBlocked": True,
+                "error": "Identity verification required",
+                "redirectTo": "/kyc"
+            }
+        
+        currency = data.currency.upper()
+        amount = data.amount
+        
+        # Get wallet
+        wallet = await db.wallets.find_one({
+            "user_email": user["email"],
+            "currency": currency
+        })
+        
+        if not wallet:
+            raise HTTPException(status_code=400, detail=f"No {currency} wallet found")
+        
+        # Check balance
+        fee = 50 if currency == "NGN" else 0
+        total_needed = amount + fee
+        
+        if wallet.get("available_balance", 0) < total_needed:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Insufficient {currency} balance. Need {total_needed}, have {wallet.get('available_balance', 0)}"
+            )
+        
+        # Create reference
+        reference_id = f"WD-{currency}-{int(datetime.now().timestamp())}-{uuid.uuid4().hex[:6].upper()}"
+        
+        # Deduct from wallet
+        await db.wallets.update_one(
+            {"id": wallet["id"]},
+            {"$set": {
+                "available_balance": wallet["available_balance"] - total_needed,
+                "pending_balance": wallet.get("pending_balance", 0) + amount
+            }}
+        )
+        
+        # Create transaction
+        tx_id = generate_id()
+        tx = {
+            "id": tx_id,
+            "user_email": user["email"],
+            "type": "withdrawal",
+            "from_currency": currency,
+            "to_currency": currency,
+            "from_amount": amount,
+            "to_amount": amount,
+            "fee": fee,
+            "status": "processing",
+            "provider": "flutterwave" if currency == "NGN" else "manual",
+            "reference_id": reference_id,
+            "description": f"{currency} withdrawal",
+            "timeline": [
+                {"status": "initiated", "timestamp": get_timestamp(), "note": "Withdrawal requested"},
+                {"status": "processing", "timestamp": get_timestamp(), "note": "Processing withdrawal"}
+            ],
+            "created_date": get_timestamp()
+        }
+        
+        if data.destination.get("bankAccountId"):
+            tx["bank_account_id"] = data.destination["bankAccountId"]
+        
+        await db.transactions.insert_one(tx)
+        
+        # Create notification
+        await db.notifications.insert_one({
+            "id": generate_id(),
+            "user_email": user["email"],
+            "title": "Withdrawal Initiated",
+            "message": f"Your {currency} withdrawal of {amount} has been initiated.",
+            "type": "transaction",
+            "is_read": False,
+            "reference_id": tx_id,
+            "created_date": get_timestamp()
+        })
+        
+        # In test mode, auto-complete after a short delay (simulated)
+        if not FLUTTERWAVE_SECRET_KEY:
+            # Mark as completed immediately for demo
+            await db.transactions.update_one(
+                {"id": tx_id},
+                {"$set": {
+                    "status": "completed",
+                    "timeline": tx["timeline"] + [
+                        {"status": "completed", "timestamp": get_timestamp(), "note": "Completed (test mode)"}
+                    ]
+                }}
+            )
+            # Clear pending
+            await db.wallets.update_one(
+                {"id": wallet["id"]},
+                {"$set": {"pending_balance": max(0, wallet.get("pending_balance", 0))}}
+            )
+        
+        return {
+            "success": True,
+            "transaction": {
+                "id": tx_id,
+                "referenceId": reference_id,
+                "status": "processing",
+                "amount": amount,
+                "currency": currency,
+                "fee": fee
+            },
+            "message": "Withdrawal initiated successfully"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        await log_error("withdraw", str(e), user["email"])
+        raise HTTPException(status_code=500, detail="Withdrawal failed")
+
+@functions_router.post("/swapCurrency")
+async def swap_currency(data: SwapRequest, user: dict = Depends(get_current_user)):
+    """Swap between currencies"""
+    try:
+        # Check KYC
+        kyc = await db.kyc_records.find_one({"user_email": user["email"]})
+        if not kyc or kyc.get("status") != "approved":
+            return {
+                "success": False,
+                "kycBlocked": True,
+                "error": "Identity verification required",
+                "redirectTo": "/kyc"
+            }
+        
+        from_currency = data.fromCurrency.upper()
+        to_currency = data.toCurrency.upper()
+        amount = data.amount
+        
+        # Get source wallet
+        source_wallet = await db.wallets.find_one({
+            "user_email": user["email"],
+            "currency": from_currency
+        })
+        
+        if not source_wallet:
+            raise HTTPException(status_code=400, detail=f"No {from_currency} wallet found")
+        
+        if source_wallet.get("available_balance", 0) < amount:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Insufficient {from_currency} balance"
+            )
+        
+        # Get or create conversion rate
+        rate_doc = await db.conversion_rates.find_one({
+            "from_currency": from_currency,
+            "to_currency": to_currency,
+            "is_active": True
+        })
+        
+        if not rate_doc:
+            # Create default rates for demo
+            default_rates = {
+                "USD-NGN": 1550,
+                "USD-USDC": 1,
+                "USD-USDT": 1,
+                "USDC-NGN": 1550,
+                "USDT-NGN": 1550,
+                "NGN-USD": 0.000645,
+                "NGN-USDC": 0.000645,
+                "NGN-USDT": 0.000645,
+            }
+            rate_key = f"{from_currency}-{to_currency}"
+            rate = default_rates.get(rate_key, 1)
+            fee_percent = 0.5
+        else:
+            rate = rate_doc.get("rate", 1)
+            fee_percent = rate_doc.get("fee_percentage", 0.5)
+        
+        fee_amount = amount * (fee_percent / 100)
+        net_amount = amount - fee_amount
+        to_amount = round(net_amount * rate, 6)
+        
+        # If not confirmed, return quote only
+        if not data.confirmed:
+            return {
+                "success": True,
+                "quote": {
+                    "fromCurrency": from_currency,
+                    "toCurrency": to_currency,
+                    "fromAmount": amount,
+                    "toAmount": to_amount,
+                    "rate": rate,
+                    "feePercent": fee_percent,
+                    "feeAmount": round(fee_amount, 6),
+                    "provider": "paysible"
+                }
+            }
+        
+        # Execute swap
+        # Deduct from source
+        await db.wallets.update_one(
+            {"id": source_wallet["id"]},
+            {"$set": {"available_balance": source_wallet["available_balance"] - amount}}
+        )
+        
+        # Credit destination
+        dest_wallet = await db.wallets.find_one({
+            "user_email": user["email"],
+            "currency": to_currency
+        })
+        
+        if dest_wallet:
+            await db.wallets.update_one(
+                {"id": dest_wallet["id"]},
+                {"$set": {"available_balance": dest_wallet.get("available_balance", 0) + to_amount}}
+            )
+        else:
+            await db.wallets.insert_one({
+                "id": generate_id(),
+                "user_email": user["email"],
+                "currency": to_currency,
+                "available_balance": to_amount,
+                "pending_balance": 0,
+                "created_date": get_timestamp()
+            })
+        
+        # Create transaction
+        reference_id = f"SW-{int(datetime.now().timestamp())}-{uuid.uuid4().hex[:6].upper()}"
+        tx_id = generate_id()
+        
+        await db.transactions.insert_one({
+            "id": tx_id,
+            "user_email": user["email"],
+            "type": "conversion",
+            "from_currency": from_currency,
+            "to_currency": to_currency,
+            "from_amount": amount,
+            "to_amount": to_amount,
+            "fee": round(fee_amount, 6),
+            "status": "completed",
+            "provider": "paysible",
+            "reference_id": reference_id,
+            "description": f"{from_currency} to {to_currency} swap",
+            "timeline": [
+                {"status": "initiated", "timestamp": get_timestamp(), "note": "Swap initiated"},
+                {"status": "completed", "timestamp": get_timestamp(), "note": "Swap completed"}
+            ],
+            "created_date": get_timestamp()
+        })
+        
+        # Notification
+        await db.notifications.insert_one({
+            "id": generate_id(),
+            "user_email": user["email"],
+            "title": "Swap Completed",
+            "message": f"Swapped {amount} {from_currency} to {to_amount} {to_currency}",
+            "type": "transaction",
+            "is_read": False,
+            "reference_id": tx_id,
+            "created_date": get_timestamp()
+        })
+        
+        return {
+            "success": True,
+            "transaction": {
+                "id": tx_id,
+                "referenceId": reference_id,
+                "fromCurrency": from_currency,
+                "toCurrency": to_currency,
+                "fromAmount": amount,
+                "toAmount": to_amount,
+                "fee": round(fee_amount, 6),
+                "rate": rate,
+                "status": "completed"
+            }
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        await log_error("swapCurrency", str(e), user["email"])
+        raise HTTPException(status_code=500, detail="Swap failed")
+
+@functions_router.post("/depositFiat")
+async def deposit_fiat(data: dict, user: dict = Depends(get_current_user)):
+    """Get deposit instructions"""
+    try:
+        # Check KYC
+        kyc = await db.kyc_records.find_one({"user_email": user["email"]})
+        if not kyc or kyc.get("status") != "approved":
+            return {
+                "success": False,
+                "kycBlocked": True,
+                "error": "Identity verification required",
+                "redirectTo": "/kyc"
+            }
+        
+        currency = data.get("currency", "").upper()
+        
+        if currency == "NGN":
+            # Return virtual account details (demo)
+            return {
+                "success": True,
+                "currency": "NGN",
+                "provider": "flutterwave",
+                "depositDetails": {
+                    "bankName": "Wema Bank",
+                    "accountNumber": f"99{user['email'][:8].replace('@', '').replace('.', '')[:8].ljust(8, '0')}",
+                    "accountName": user.get("full_name") or user["email"],
+                    "instructions": "Transfer NGN from any Nigerian bank. Balance updates within minutes."
+                }
+            }
+        
+        if currency == "USD":
+            return {
+                "success": True,
+                "currency": "USD",
+                "provider": "bridge",
+                "depositDetails": {
+                    "bankName": "Bridge Bank",
+                    "accountNumber": "Demo Account",
+                    "routingNumber": "Demo Routing",
+                    "accountType": "checking",
+                    "paymentRail": "ACH / Wire",
+                    "reference": user["email"],
+                    "instructions": "Send USD via ACH or wire. Include your email as reference."
+                }
+            }
+        
+        raise HTTPException(status_code=400, detail=f"Unsupported currency: {currency}")
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        await log_error("depositFiat", str(e), user["email"])
+        raise HTTPException(status_code=500, detail="Unable to load deposit details")
+
+@functions_router.post("/createUserWallet")
+async def create_user_wallet(user: dict = Depends(get_current_user)):
+    """Initialize user wallets"""
+    try:
+        # Check if wallets already exist
+        existing = await db.wallets.find({"user_email": user["email"]}).to_list(10)
+        existing_currencies = {w["currency"] for w in existing}
+        
+        currencies = ["USD", "USDC", "USDT", "NGN"]
+        created = []
+        
+        for currency in currencies:
+            if currency not in existing_currencies:
+                wallet_id = generate_id()
+                await db.wallets.insert_one({
+                    "id": wallet_id,
+                    "user_email": user["email"],
+                    "currency": currency,
+                    "available_balance": 0,
+                    "pending_balance": 0,
+                    "created_date": get_timestamp()
+                })
+                created.append(currency)
+        
+        # Ensure balance snapshot exists
+        balance = await db.balances.find_one({"user_email": user["email"]})
+        if not balance:
+            await db.balances.insert_one({
+                "id": generate_id(),
+                "user_email": user["email"],
+                "usd": 0,
+                "usdc": 0,
+                "usdt": 0,
+                "ngn": 0,
+                "last_updated": get_timestamp()
+            })
+        
+        return {
+            "success": True,
+            "created_wallets": created,
+            "message": "Wallets initialized"
+        }
+        
+    except Exception as e:
+        await log_error("createUserWallet", str(e), user["email"])
+        raise HTTPException(status_code=500, detail="Failed to create wallets")
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# WEBHOOK HANDLERS
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@webhooks_router.post("/flutterwave")
+async def flutterwave_webhook(request: Request):
+    """Handle Flutterwave webhooks"""
+    try:
+        # Verify signature
+        verif_hash = request.headers.get("verif-hash", "")
+        if WEBHOOK_SECRET and verif_hash != WEBHOOK_SECRET:
+            logger.warning("Invalid Flutterwave webhook signature")
+            return {"received": True}
+        
+        body = await request.json()
+        event_type = body.get("event")
+        data = body.get("data", {})
+        
+        logger.info(f"Flutterwave webhook: {event_type}")
+        
+        if event_type == "charge.completed":
+            # Deposit received
+            amount = float(data.get("amount", 0))
+            customer_email = data.get("customer", {}).get("email")
+            reference = data.get("flw_ref") or data.get("tx_ref")
+            
+            if customer_email and amount > 0:
+                # Credit NGN wallet
+                wallet = await db.wallets.find_one({
+                    "user_email": customer_email,
+                    "currency": "NGN"
+                })
+                
+                if wallet:
+                    await db.wallets.update_one(
+                        {"id": wallet["id"]},
+                        {"$set": {"available_balance": wallet.get("available_balance", 0) + amount}}
+                    )
+                
+                # Create transaction
+                await db.transactions.insert_one({
+                    "id": generate_id(),
+                    "user_email": customer_email,
+                    "type": "deposit",
+                    "from_currency": "NGN",
+                    "to_currency": "NGN",
+                    "from_amount": amount,
+                    "to_amount": amount,
+                    "fee": 0,
+                    "status": "completed",
+                    "provider": "flutterwave",
+                    "reference_id": reference,
+                    "description": "NGN deposit",
+                    "timeline": [
+                        {"status": "completed", "timestamp": get_timestamp(), "note": "Deposit confirmed"}
+                    ],
+                    "created_date": get_timestamp()
+                })
+                
+                # Notification
+                await db.notifications.insert_one({
+                    "id": generate_id(),
+                    "user_email": customer_email,
+                    "title": "Deposit Confirmed",
+                    "message": f"NGN {amount:,.2f} has been credited to your wallet.",
+                    "type": "transaction",
+                    "is_read": False,
+                    "created_date": get_timestamp()
+                })
+        
+        elif event_type == "transfer.completed":
+            # Withdrawal completed
+            flw_transfer_id = str(data.get("id"))
+            tx = await db.transactions.find_one({"provider_transaction_id": flw_transfer_id})
+            
+            if tx and tx.get("status") != "completed":
+                await db.transactions.update_one(
+                    {"id": tx["id"]},
+                    {"$set": {
+                        "status": "completed",
+                        "timeline": tx.get("timeline", []) + [
+                            {"status": "completed", "timestamp": get_timestamp(), "note": "Withdrawal successful"}
+                        ]
+                    }}
+                )
+                
+                # Clear pending
+                wallet = await db.wallets.find_one({
+                    "user_email": tx["user_email"],
+                    "currency": tx["from_currency"]
+                })
+                if wallet:
+                    await db.wallets.update_one(
+                        {"id": wallet["id"]},
+                        {"$set": {"pending_balance": max(0, wallet.get("pending_balance", 0) - tx["from_amount"])}}
+                    )
+        
+        elif event_type == "transfer.failed":
+            # Withdrawal failed
+            flw_transfer_id = str(data.get("id"))
+            reason = data.get("complete_message") or "Transfer failed"
+            
+            tx = await db.transactions.find_one({"provider_transaction_id": flw_transfer_id})
+            
+            if tx and tx.get("status") not in ["completed", "failed"]:
+                # Refund wallet
+                wallet = await db.wallets.find_one({
+                    "user_email": tx["user_email"],
+                    "currency": tx["from_currency"]
+                })
+                if wallet:
+                    refund = tx["from_amount"] + tx.get("fee", 0)
+                    await db.wallets.update_one(
+                        {"id": wallet["id"]},
+                        {"$set": {
+                            "available_balance": wallet.get("available_balance", 0) + refund,
+                            "pending_balance": max(0, wallet.get("pending_balance", 0) - tx["from_amount"])
+                        }}
+                    )
+                
+                await db.transactions.update_one(
+                    {"id": tx["id"]},
+                    {"$set": {
+                        "status": "failed",
+                        "timeline": tx.get("timeline", []) + [
+                            {"status": "failed", "timestamp": get_timestamp(), "note": reason}
+                        ]
+                    }}
+                )
+        
+        return {"received": True}
+        
+    except Exception as e:
+        logger.error(f"Flutterwave webhook error: {e}")
+        return {"received": True}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SEED DATA FOR DEMO
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@api_router.post("/seed-demo-data")
+async def seed_demo_data():
+    """Seed demo conversion rates"""
+    rates = [
+        {"from_currency": "USD", "to_currency": "NGN", "rate": 1550, "fee_percentage": 0.5, "is_active": True},
+        {"from_currency": "USD", "to_currency": "USDT", "rate": 1, "fee_percentage": 0.1, "is_active": True},
+        {"from_currency": "USDC", "to_currency": "NGN", "rate": 1550, "fee_percentage": 0.5, "is_active": True},
+        {"from_currency": "USDT", "to_currency": "NGN", "rate": 1550, "fee_percentage": 0.5, "is_active": True},
+    ]
+    
+    for rate in rates:
+        existing = await db.conversion_rates.find_one({
+            "from_currency": rate["from_currency"],
+            "to_currency": rate["to_currency"]
+        })
+        if not existing:
+            rate["id"] = generate_id()
+            rate["created_date"] = get_timestamp()
+            await db.conversion_rates.insert_one(rate)
+    
+    return {"success": True, "message": "Demo data seeded"}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# HEALTH CHECK
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@api_router.get("/health")
+async def health_check():
+    """Health check endpoint"""
+    return {"status": "healthy", "timestamp": get_timestamp()}
+
+@api_router.get("/")
+async def root():
+    """Root endpoint"""
+    return {"message": "Paysible API", "version": "1.0.0"}
+
+# Include routers
+api_router.include_router(auth_router)
+api_router.include_router(entities_router)
+api_router.include_router(functions_router)
+api_router.include_router(webhooks_router)
+app.include_router(api_router)
+
+# CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_credentials=True,
+    allow_origins=os.environ.get('CORS_ORIGINS', '*').split(','),
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+@app.on_event("startup")
+async def startup_event():
+    """Initialize database indexes"""
+    try:
+        # Create indexes for better query performance
+        await db.users.create_index("email", unique=True)
+        await db.wallets.create_index([("user_email", 1), ("currency", 1)])
+        await db.transactions.create_index("user_email")
+        await db.transactions.create_index("reference_id")
+        await db.kyc_records.create_index("user_email")
+        await db.bank_accounts.create_index("user_email")
+        await db.notifications.create_index([("user_email", 1), ("is_read", 1)])
+        logger.info("Database indexes created")
+    except Exception as e:
+        logger.error(f"Index creation failed: {e}")
+
+@app.on_event("shutdown")
+async def shutdown_db_client():
+    client.close()
