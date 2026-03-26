@@ -42,10 +42,6 @@ export default function Login() {
       // Show biometric prompt if enabled
       if (available && enabled && user) {
         setShowBiometricPrompt(true);
-        // Auto-trigger biometric after a short delay
-        setTimeout(() => {
-          handleBiometricLogin();
-        }, 500);
       }
     };
     
