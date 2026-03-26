@@ -346,21 +346,36 @@ export default function ConvertFunds() {
           </div>
         </div>
 
-        {/* Wallet balances strip */}
+        {/* Wallet balances strip - Clickable to set "From" currency */}
         <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
-          {SUPPORTED.map(c => {
+          {SUPPORTED.filter(c => c !== 'NGN').map(c => {
             const w = wallets.find(ww => ww.currency === c);
             const bal = w?.available_balance || 0;
+            const isSelected = c === fromCurrency;
             return (
-              <div key={c} className={`flex-shrink-0 bg-card border rounded-xl px-3 py-2.5 min-w-[120px] ${c === fromCurrency ? 'border-primary bg-primary/5' : 'border-border'}`}>
+              <button
+                key={c}
+                onClick={() => {
+                  if (c !== fromCurrency) {
+                    triggerHaptic('light');
+                    setFromCurrency(c);
+                    // Keep toCurrency as is (NGN or whatever was selected)
+                  }
+                }}
+                className={`flex-shrink-0 bg-card border-2 rounded-xl px-3 py-2.5 min-w-[100px] transition-all ${
+                  isSelected 
+                    ? 'border-primary bg-primary/10 scale-105 shadow-md' 
+                    : 'border-border hover:border-primary/50 hover:bg-muted/50'
+                }`}
+              >
                 <div className="flex items-center gap-1.5 mb-1">
                   <span className="text-sm">{CURRENCIES[c]?.flag}</span>
-                  <span className="text-xs font-semibold">{c}</span>
+                  <span className={`text-xs font-semibold ${isSelected ? 'text-primary' : ''}`}>{c}</span>
                 </div>
-                <p className={`text-sm font-bold tabular-nums ${bal === 0 ? 'text-muted-foreground' : ''}`}>
+                <p className={`text-sm font-bold tabular-nums ${bal === 0 ? 'text-muted-foreground' : isSelected ? 'text-primary' : ''}`}>
                   {formatCurrency(bal, c)}
                 </p>
-              </div>
+              </button>
             );
           })}
         </div>
