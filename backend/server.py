@@ -4,7 +4,6 @@ Replicates Base44 cloud functions for Emergent platform
 """
 from fastapi import FastAPI, APIRouter, HTTPException, Depends, Query, Request, UploadFile, File
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-import base64
 from fastapi.responses import FileResponse
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
@@ -169,7 +168,7 @@ async def get_optional_user(credentials: HTTPAuthorizationCredentials = Depends(
         payload = decode_jwt_token(credentials.credentials)
         user = await db.users.find_one({"id": payload['sub']}, {"_id": 0})
         return user
-    except:
+    except Exception:
         return None
 
 async def log_error(function_name: str, error_message: str, user_email: str = None, provider: str = None):
@@ -183,8 +182,8 @@ async def log_error(function_name: str, error_message: str, user_email: str = No
             "provider": provider,
             "created_date": get_timestamp()
         })
-    except:
-        pass
+    except Exception:
+        logger.warning(f"Failed to log error: {function_name} - {error_message}")
 
 # Nigerian bank codes
 BANK_CODES = {
