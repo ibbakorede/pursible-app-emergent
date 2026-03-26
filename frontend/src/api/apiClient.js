@@ -146,9 +146,30 @@ const auth = {
 // MAIN EXPORT - Mimics base44 client structure
 // ═══════════════════════════════════════════════════════════════════════════════
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// INTEGRATIONS - File uploads and other integrations
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const integrations = {
+  Core: {
+    UploadFile: async ({ file }) => {
+      const formData = new FormData();
+      formData.append('file', file);
+      
+      const response = await api.post('/upload', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      return response.data;
+    },
+  },
+};
+
 export const base44 = {
   auth,
   functions,
+  integrations,
   entities: {
     User: createEntityAPI('users'),
     Wallet: createEntityAPI('wallets'),
@@ -164,6 +185,7 @@ export const base44 = {
     Goal: createEntityAPI('goals'),
     Referral: createEntityAPI('referrals'),
     SupportTicket: createEntityAPI('support_tickets'),
+    DepositAccount: createEntityAPI('deposit_accounts'),
   },
 };
 

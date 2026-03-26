@@ -2,8 +2,10 @@
 Paysible Backend - FastAPI Server
 Replicates Base44 cloud functions for Emergent platform
 """
-from fastapi import FastAPI, APIRouter, HTTPException, Depends, Query, Request
+from fastapi import FastAPI, APIRouter, HTTPException, Depends, Query, Request, UploadFile, File
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+import base64
+from fastapi.responses import FileResponse
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -1193,17 +1195,187 @@ async def flutterwave_webhook(request: Request):
         return {"received": True}
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# FILE UPLOAD ENDPOINT
+# ═══════════════════════════════════════════════════════════════════════════════
+
+UPLOAD_DIR = Path("/app/backend/uploads")
+UPLOAD_DIR.mkdir(exist_ok=True)
+
+@api_router.post("/upload")
+async def upload_file(file: UploadFile = File(...), user: dict = Depends(get_current_user)):
+    """Upload a file and return its URL"""
+    try:
+        # Validate file type
+        allowed_types = ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'application/pdf']
+        if file.content_type not in allowed_types:
+            raise HTTPException(status_code=400, detail="Invalid file type. Use JPG, PNG, WEBP, or PDF.")
+        
+        # Validate file size (10MB max)
+        contents = await file.read()
+        if len(contents) > 10 * 1024 * 1024:
+            raise HTTPException(status_code=400, detail="File too large. Max size is 10MB.")
+        
+        # Generate unique filename
+        ext = Path(file.filename).suffix or '.bin'
+        unique_name = f"{uuid.uuid4().hex}{ext}"
+        file_path = UPLOAD_DIR / unique_name
+        
+        # Save file
+        with open(file_path, 'wb') as f:
+            f.write(contents)
+        
+        # Generate public URL (using the API endpoint to serve files)
+        file_url = f"/api/files/{unique_name}"
+        
+        # Log the upload
+        await db.file_uploads.insert_one({
+            "id": generate_id(),
+            "user_email": user["email"],
+            "filename": file.filename,
+            "stored_name": unique_name,
+            "content_type": file.content_type,
+            "size": len(contents),
+            "url": file_url,
+            "created_date": get_timestamp()
+        })
+        
+        return {"success": True, "file_url": file_url}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        await log_error("upload_file", str(e), user["email"])
+        raise HTTPException(status_code=500, detail="Upload failed")
+
+@api_router.get("/files/{filename}")
+async def serve_file(filename: str):
+    """Serve an uploaded file"""
+    file_path = UPLOAD_DIR / filename
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="File not found")
+    
+    # Determine content type
+    ext = file_path.suffix.lower()
+    content_types = {
+        '.jpg': 'image/jpeg',
+        '.jpeg': 'image/jpeg',
+        '.png': 'image/png',
+        '.webp': 'image/webp',
+        '.pdf': 'application/pdf',
+        '.heic': 'image/heic',
+    }
+    content_type = content_types.get(ext, 'application/octet-stream')
+    
+    return FileResponse(file_path, media_type=content_type)
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# CONVERSION RATES ENDPOINT
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@api_router.get("/rates")
+async def get_conversion_rates():
+    """Get all active conversion rates"""
+    try:
+        rates = await db.conversion_rates.find(
+            {"is_active": True},
+            {"_id": 0}
+        ).to_list(50)
+        
+        # If no rates in DB, return defaults
+        if not rates:
+            rates = [
+                {"from_currency": "USD", "to_currency": "NGN", "rate": 1550, "fee_percentage": 0.5},
+                {"from_currency": "USD", "to_currency": "USDC", "rate": 1, "fee_percentage": 0.1},
+                {"from_currency": "USD", "to_currency": "USDT", "rate": 1, "fee_percentage": 0.1},
+                {"from_currency": "USDC", "to_currency": "NGN", "rate": 1550, "fee_percentage": 0.5},
+                {"from_currency": "USDC", "to_currency": "USD", "rate": 1, "fee_percentage": 0.1},
+                {"from_currency": "USDT", "to_currency": "NGN", "rate": 1550, "fee_percentage": 0.5},
+                {"from_currency": "USDT", "to_currency": "USD", "rate": 1, "fee_percentage": 0.1},
+                {"from_currency": "NGN", "to_currency": "USD", "rate": 0.000645, "fee_percentage": 0.5},
+                {"from_currency": "NGN", "to_currency": "USDC", "rate": 0.000645, "fee_percentage": 0.5},
+                {"from_currency": "NGN", "to_currency": "USDT", "rate": 0.000645, "fee_percentage": 0.5},
+            ]
+        
+        return {"success": True, "rates": rates}
+        
+    except Exception as e:
+        logger.error(f"Error fetching rates: {e}")
+        return {"success": True, "rates": []}
+
+@api_router.get("/rates/{from_currency}/{to_currency}")
+async def get_specific_rate(from_currency: str, to_currency: str):
+    """Get rate for a specific currency pair"""
+    try:
+        from_curr = from_currency.upper()
+        to_curr = to_currency.upper()
+        
+        rate_doc = await db.conversion_rates.find_one({
+            "from_currency": from_curr,
+            "to_currency": to_curr,
+            "is_active": True
+        }, {"_id": 0})
+        
+        if rate_doc:
+            return {
+                "success": True,
+                "rate": rate_doc.get("rate"),
+                "fee_percentage": rate_doc.get("fee_percentage", 0.5),
+                "from_currency": from_curr,
+                "to_currency": to_curr
+            }
+        
+        # Default rates
+        default_rates = {
+            "USD-NGN": 1550,
+            "USD-USDC": 1,
+            "USD-USDT": 1,
+            "USDC-NGN": 1550,
+            "USDC-USD": 1,
+            "USDT-NGN": 1550,
+            "USDT-USD": 1,
+            "NGN-USD": 0.000645,
+            "NGN-USDC": 0.000645,
+            "NGN-USDT": 0.000645,
+        }
+        
+        rate_key = f"{from_curr}-{to_curr}"
+        if rate_key in default_rates:
+            return {
+                "success": True,
+                "rate": default_rates[rate_key],
+                "fee_percentage": 0.5,
+                "from_currency": from_curr,
+                "to_currency": to_curr
+            }
+        
+        return {
+            "success": False,
+            "error": f"No rate available for {from_curr} to {to_curr}"
+        }
+        
+    except Exception as e:
+        logger.error(f"Error fetching specific rate: {e}")
+        return {"success": False, "error": "Unable to fetch rate"}
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # SEED DATA FOR DEMO
 # ═══════════════════════════════════════════════════════════════════════════════
 
 @api_router.post("/seed-demo-data")
 async def seed_demo_data():
-    """Seed demo conversion rates"""
+    """Seed demo conversion rates and deposit accounts"""
+    # Seed conversion rates
     rates = [
         {"from_currency": "USD", "to_currency": "NGN", "rate": 1550, "fee_percentage": 0.5, "is_active": True},
+        {"from_currency": "USD", "to_currency": "USDC", "rate": 1, "fee_percentage": 0.1, "is_active": True},
         {"from_currency": "USD", "to_currency": "USDT", "rate": 1, "fee_percentage": 0.1, "is_active": True},
         {"from_currency": "USDC", "to_currency": "NGN", "rate": 1550, "fee_percentage": 0.5, "is_active": True},
+        {"from_currency": "USDC", "to_currency": "USD", "rate": 1, "fee_percentage": 0.1, "is_active": True},
         {"from_currency": "USDT", "to_currency": "NGN", "rate": 1550, "fee_percentage": 0.5, "is_active": True},
+        {"from_currency": "USDT", "to_currency": "USD", "rate": 1, "fee_percentage": 0.1, "is_active": True},
+        {"from_currency": "NGN", "to_currency": "USD", "rate": 0.000645, "fee_percentage": 0.5, "is_active": True},
+        {"from_currency": "NGN", "to_currency": "USDC", "rate": 0.000645, "fee_percentage": 0.5, "is_active": True},
+        {"from_currency": "NGN", "to_currency": "USDT", "rate": 0.000645, "fee_percentage": 0.5, "is_active": True},
     ]
     
     for rate in rates:
@@ -1216,7 +1388,54 @@ async def seed_demo_data():
             rate["created_date"] = get_timestamp()
             await db.conversion_rates.insert_one(rate)
     
-    return {"success": True, "message": "Demo data seeded"}
+    # Seed deposit accounts (these are the deposit channel configurations)
+    deposit_accounts = [
+        {
+            "id": generate_id(),
+            "type": "usd_wire",
+            "label": "USD Wire Transfer",
+            "is_active": True,
+            "fields": [
+                {"key": "bank_name", "label": "Bank Name", "value": "Bridge Bank"},
+                {"key": "routing_number", "label": "Routing Number", "value": "Demo Routing"},
+                {"key": "account_number", "label": "Account Number", "value": "Demo Account"},
+                {"key": "account_type", "label": "Account Type", "value": "Checking"},
+                {"key": "reference", "label": "Reference", "value": "Use your email"},
+            ],
+            "created_date": get_timestamp()
+        },
+        {
+            "id": generate_id(),
+            "type": "stable_wallet",
+            "label": "USDT / Stablecoin",
+            "is_active": True,
+            "fields": [
+                {"key": "network", "label": "Network", "value": "Ethereum / ERC-20"},
+                {"key": "wallet_address", "label": "Wallet Address", "value": "0x1234567890abcdef1234567890abcdef12345678"},
+                {"key": "supported_tokens", "label": "Supported Tokens", "value": "USDT, USDC"},
+            ],
+            "created_date": get_timestamp()
+        },
+        {
+            "id": generate_id(),
+            "type": "ngn_bank",
+            "label": "NGN Bank Transfer",
+            "is_active": True,
+            "fields": [
+                {"key": "bank_name", "label": "Bank Name", "value": "Wema Bank"},
+                {"key": "account_number", "label": "Account Number", "value": "9900000001"},
+                {"key": "account_name", "label": "Account Name", "value": "Paysible Ltd"},
+            ],
+            "created_date": get_timestamp()
+        }
+    ]
+    
+    for account in deposit_accounts:
+        existing = await db.deposit_accounts.find_one({"type": account["type"]})
+        if not existing:
+            await db.deposit_accounts.insert_one(account)
+    
+    return {"success": True, "message": "Demo data seeded (rates + deposit accounts)"}
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # HEALTH CHECK
