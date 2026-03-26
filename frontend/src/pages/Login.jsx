@@ -18,20 +18,26 @@ export default function Login() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    console.log('[Login] Form submitted', { isLogin, email: form.email });
     setLoading(true);
     setError('');
 
     try {
       if (isLogin) {
+        console.log('[Login] Calling login...');
         await login(form.email, form.password);
+        console.log('[Login] Login successful');
       } else {
+        console.log('[Login] Calling register...');
         await register({
           email: form.email,
           password: form.password,
           full_name: form.full_name
         });
+        console.log('[Login] Registration successful');
       }
     } catch (err) {
+      console.error('[Login] Error:', err);
       setError(err.response?.data?.detail || err.message || 'Something went wrong');
     } finally {
       setLoading(false);
@@ -62,7 +68,7 @@ export default function Login() {
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-4" data-testid="login-form">
             {!isLogin && (
               <div>
                 <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
@@ -77,6 +83,7 @@ export default function Login() {
                     onChange={(e) => setForm({ ...form, full_name: e.target.value })}
                     className="pl-10 rounded-xl h-12"
                     required={!isLogin}
+                    data-testid="input-fullname"
                   />
                 </div>
               </div>
@@ -95,6 +102,7 @@ export default function Login() {
                   onChange={(e) => setForm({ ...form, email: e.target.value })}
                   className="pl-10 rounded-xl h-12"
                   required
+                  data-testid="input-email"
                 />
               </div>
             </div>
@@ -113,6 +121,7 @@ export default function Login() {
                   className="pl-10 pr-10 rounded-xl h-12"
                   required
                   minLength={6}
+                  data-testid="input-password"
                 />
                 <button
                   type="button"
@@ -128,6 +137,7 @@ export default function Login() {
               type="submit"
               className="w-full rounded-xl h-12 bg-purple-600 hover:bg-purple-700 text-base font-semibold"
               disabled={loading}
+              data-testid="submit-button"
             >
               {loading ? (
                 <><Loader2 className="w-4 h-4 animate-spin mr-2" /> Please wait...</>
