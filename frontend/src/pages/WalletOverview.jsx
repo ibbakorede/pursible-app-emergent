@@ -93,9 +93,16 @@ export default function WalletOverview() {
     setPrevTotalInPrimary(totalInPrimary);
   }, [totalInPrimary, primaryCurrency, announceBalance]);
 
-  const lastUpdated = rates.length > 0
-    ? format(new Date(Math.max(...rates.map(r => new Date(r.updated_date)))), 'h:mm a')
-    : null;
+  const lastUpdated = useMemo(() => {
+    if (rates.length === 0) return null;
+    // Get the most recent date from rates, using created_date or updated_date
+    const validDates = rates
+      .map(r => r.updated_date || r.created_date)
+      .filter(d => d && !isNaN(new Date(d).getTime()))
+      .map(d => new Date(d).getTime());
+    if (validDates.length === 0) return null;
+    return format(new Date(Math.max(...validDates)), 'h:mm a');
+  }, [rates]);
 
   if (isLoading) return <WalletPageSkeleton />;
 
