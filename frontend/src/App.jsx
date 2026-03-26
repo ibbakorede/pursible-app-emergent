@@ -5,6 +5,7 @@ import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
 import { lazy, Suspense, useEffect } from 'react';
 import PageNotFound from './lib/PageNotFound';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
+import { ThemeProvider } from '@/lib/ThemeContext';
 import Login from '@/pages/Login';
 import Onboarding from '@/pages/Onboarding';
 import RouteTransition from '@/components/layout/RouteTransition';
@@ -137,25 +138,27 @@ const AuthenticatedApp = () => {
 
 function App() {
   return (
-    <AuthProvider>
-      <QueryClientProvider client={queryClientInstance}>
-        <Router>
-          {/* Skip to content link for accessibility */}
-          <a
-            href="#main-content"
-            className="absolute -left-full top-0 z-50 bg-primary text-primary-foreground px-4 py-2 rounded-b text-sm font-medium focus:static"
-          >
-            Skip to content
-          </a>
-          <div id="main-content">
-            <AriaLiveRegionContainer />
-            <OfflineQueueStatus />
-            <AuthenticatedApp />
-          </div>
-        </Router>
-        <Toaster />
-      </QueryClientProvider>
-    </AuthProvider>
+    <ThemeProvider>
+      <AuthProvider>
+        <QueryClientProvider client={queryClientInstance}>
+          <Router>
+            {/* Skip to content link for accessibility */}
+            <a
+              href="#main-content"
+              className="absolute -left-full top-0 z-50 bg-primary text-primary-foreground px-4 py-2 rounded-b text-sm font-medium focus:static"
+            >
+              Skip to content
+            </a>
+            <div id="main-content">
+              <AriaLiveRegionContainer />
+              <OfflineQueueStatus />
+              <AuthenticatedApp />
+            </div>
+          </Router>
+          <Toaster />
+        </QueryClientProvider>
+      </AuthProvider>
+    </ThemeProvider>
   );
 }
 

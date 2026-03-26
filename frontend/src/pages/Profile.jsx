@@ -2,9 +2,10 @@ import { useEffect, useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
+import { useTheme } from '@/lib/ThemeContext';
 import {
   User, Building2, Shield, Bell, Lock, HelpCircle, FileText,
-  ChevronRight, LogOut, Settings, TrendingUp, CheckCircle, AlertCircle, Clock, Target, Gift
+  ChevronRight, LogOut, Settings, TrendingUp, CheckCircle, AlertCircle, Clock, Target, Gift, Sun, Moon
 } from 'lucide-react';
 
 const KYC_STATUS_CONFIG = {
@@ -17,6 +18,7 @@ const KYC_STATUS_CONFIG = {
 
 export default function Profile() {
   const [user, setUser] = useState(null);
+  const { theme, toggleTheme, isDark } = useTheme();
   useEffect(() => { base44.auth.me().then(setUser); }, []);
 
   const { data: kyc = [] } = useQuery({
@@ -118,6 +120,32 @@ export default function Profile() {
           </div>
         </div>
       ))}
+
+      {/* Theme Toggle */}
+      <div>
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 px-1">Appearance</p>
+        <div className="bg-card border border-border rounded-2xl overflow-hidden">
+          <button 
+            onClick={toggleTheme}
+            className="w-full flex items-center gap-3.5 px-4 py-4 hover:bg-muted/50 transition-colors"
+          >
+            <div className="w-9 h-9 rounded-xl bg-muted flex items-center justify-center flex-shrink-0">
+              {isDark ? (
+                <Moon className="w-4.5 h-4.5 text-muted-foreground" style={{ width: '1.1rem', height: '1.1rem' }} />
+              ) : (
+                <Sun className="w-4.5 h-4.5 text-muted-foreground" style={{ width: '1.1rem', height: '1.1rem' }} />
+              )}
+            </div>
+            <div className="flex-1 min-w-0 text-left">
+              <p className="text-sm font-semibold">Theme</p>
+              <p className="text-xs text-muted-foreground">{isDark ? 'Dark mode' : 'Light mode'}</p>
+            </div>
+            <div className={`relative w-12 h-7 rounded-full transition-colors ${isDark ? 'bg-primary' : 'bg-muted'}`}>
+              <div className={`absolute top-1 w-5 h-5 rounded-full bg-white shadow-md transition-transform ${isDark ? 'translate-x-6' : 'translate-x-1'}`} />
+            </div>
+          </button>
+        </div>
+      </div>
 
       <button
         onClick={() => base44.auth.logout('/')}
