@@ -153,28 +153,34 @@ export const useNotificationAnnouncement = () => {
 
 /**
  * Helper to announce balance updates when data changes
+ * Note: This dispatches an event which the AriaLiveRegionContainer will handle
  */
 export const announceBalanceUpdate = (currency, newBalance, oldBalance = null) => {
-  const { announce } = useAriaLiveRegion('balance');
-
+  let message;
   if (oldBalance !== null) {
     const change = newBalance - oldBalance;
     const direction = change > 0 ? 'increased' : 'decreased';
-    announce(
-      `${currency} balance ${direction} from ${oldBalance} to ${newBalance}`
-    );
+    message = `${currency} balance ${direction} from ${oldBalance} to ${newBalance}`;
   } else {
-    announce(`${currency} balance updated to ${newBalance}`);
+    message = `${currency} balance updated to ${newBalance}`;
   }
+  
+  window.dispatchEvent(
+    new CustomEvent('ariaLiveUpdate', {
+      detail: { region: 'balance', message },
+    })
+  );
 };
 
 /**
  * Helper to announce transaction completions
  */
 export const announceTransactionComplete = (transactionType, amount, currency, status) => {
-  const { announce } = useAriaLiveRegion('transaction');
-  announce(
-    `${transactionType} of ${amount} ${currency} has ${status}`
+  const message = `${transactionType} of ${amount} ${currency} has ${status}`;
+  window.dispatchEvent(
+    new CustomEvent('ariaLiveUpdate', {
+      detail: { region: 'transaction', message },
+    })
   );
 };
 
@@ -182,7 +188,11 @@ export const announceTransactionComplete = (transactionType, amount, currency, s
  * Helper to announce sync progress
  */
 export const announceSyncProgress = (completed, total) => {
-  const { announce } = useAriaLiveRegion('syncStatus');
   const percentage = Math.round((completed / total) * 100);
-  announce(`Syncing transactions: ${completed} of ${total} complete, ${percentage}%`);
+  const message = `Syncing transactions: ${completed} of ${total} complete, ${percentage}%`;
+  window.dispatchEvent(
+    new CustomEvent('ariaLiveUpdate', {
+      detail: { region: 'syncStatus', message },
+    })
+  );
 };

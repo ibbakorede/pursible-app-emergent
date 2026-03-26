@@ -12,10 +12,6 @@ export default function OfflineQueueStatus() {
   const [showRecovery, setShowRecovery] = useState(false);
   const announceSyncStatus = useSyncStatusAnnouncement();
 
-  if (isOnline && !pendingCount && !failedCount) {
-    return null; // Don't show if online and no queue
-  }
-
   useEffect(() => {
     const handleProgress = (e) => {
       setSyncProgress(e.detail);
@@ -25,13 +21,16 @@ export default function OfflineQueueStatus() {
         announceSyncStatus('starting');
       } else if (e.detail.status === 'complete') {
         announceSyncStatus('complete');
-      } else if (e.detail.completed && e.detail.total) {
-        announceSyncProgress(e.detail.completed, e.detail.total);
       }
     };
     window.addEventListener('offlineQueueProgress', handleProgress);
     return () => window.removeEventListener('offlineQueueProgress', handleProgress);
   }, [announceSyncStatus]);
+
+  // Early return after hooks
+  if (isOnline && !pendingCount && !failedCount) {
+    return null; // Don't show if online and no queue
+  }
 
   const handleManualSync = async () => {
     setIsSyncing(true);
