@@ -46,9 +46,12 @@ export default function Onboarding() {
   return (
     <div className="fixed inset-0 flex items-center justify-center bg-background px-4">
       <div className="w-full max-w-sm space-y-8">
-        <div className="text-center space-y-2">
-          <h1 className="text-3xl font-bold text-primary">Welcome to Paysible</h1>
-          <p className="text-sm text-muted-foreground">Tell us your name to get started</p>
+        <div className="text-center space-y-4">
+          <img src="/paysible_icon_white.svg" alt="Paysible" className="w-20 h-20 mx-auto" />
+          <div>
+            <h1 className="text-3xl font-bold text-foreground">Welcome to Paysible</h1>
+            <p className="text-sm text-muted-foreground">Tell us your name to get started</p>
+          </div>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">

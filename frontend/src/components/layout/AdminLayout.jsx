@@ -34,9 +34,12 @@ export default function AdminLayout() {
 
   const sidebar = (
     <div className="flex flex-col h-full bg-sidebar text-sidebar-foreground">
-      <div className="p-6 border-b border-sidebar-border">
-        <h1 className="text-xl font-bold text-white">Paysible</h1>
-        <p className="text-xs text-sidebar-foreground/60 mt-0.5">Admin Dashboard</p>
+      <div className="p-6 border-b border-sidebar-border flex items-center gap-3">
+        <img src="/paysible_icon_white.svg" alt="Paysible" className="w-10 h-10" />
+        <div>
+          <h1 className="text-xl font-bold text-white">Paysible</h1>
+          <p className="text-xs text-sidebar-foreground/60">Admin Dashboard</p>
+        </div>
       </div>
       <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
         {sidebarItems.map((item) => (
