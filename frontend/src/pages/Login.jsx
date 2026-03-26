@@ -49,8 +49,8 @@ export default function Login() {
       <div className="w-full max-w-md">
         {/* Logo */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-primary mb-4">
-            <span className="text-3xl font-bold text-primary-foreground">P</span>
+          <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-primary mb-4 p-3">
+            <img src="/paysible_icon.svg" alt="Paysible" className="w-full h-full" />
           </div>
           <h1 className="text-3xl font-bold text-foreground mb-2">Paysible</h1>
           <p className="text-muted-foreground">Your Global Money App</p>
