@@ -1,102 +1,171 @@
 /**
- * Push Notifications - Web-compatible version
- * Uses Capacitor for native platforms, gracefully degrades on web
+ * Push Notification Service
+ * Supports both Web Push and prepares for FCM (mobile)
  */
 
-let Capacitor = null;
-let PushNotifications = null;
-let App = null;
-let isNative = false;
+const NOTIFICATION_PERMISSION_KEY = 'paysible_notification_permission';
+const NOTIFICATION_SETTINGS_KEY = 'paysible_notification_settings';
+const FCM_TOKEN_KEY = 'paysible_fcm_token';
 
-// Try to load Capacitor dynamically
-try {
-  const capacitorCore = require('@capacitor/core');
-  Capacitor = capacitorCore.Capacitor;
-  isNative = Capacitor?.isNativePlatform?.() || false;
-  
-  if (isNative) {
-    try {
-      PushNotifications = require('@capacitor/push-notifications').PushNotifications;
-    } catch (e) {
-      console.log('[Push] Push notifications plugin not available');
+// Default notification settings
+const defaultSettings = {
+  transactions: true,      // Deposits, withdrawals, conversions
+  rateAlerts: true,        // When target rate is reached
+  security: true,          // New login, password changes
+  marketing: false,        // Promotional notifications
+};
+
+// Check if notifications are supported
+export const isNotificationSupported = () => {
+  return 'Notification' in window && 'serviceWorker' in navigator;
+};
+
+// Get current permission status
+export const getNotificationPermission = () => {
+  if (!isNotificationSupported()) return 'unsupported';
+  return Notification.permission;
+};
+
+// Request notification permission
+export const requestNotificationPermission = async () => {
+  if (!isNotificationSupported()) {
+    return { granted: false, reason: 'unsupported' };
+  }
+
+  try {
+    const permission = await Notification.requestPermission();
+    localStorage.setItem(NOTIFICATION_PERMISSION_KEY, permission);
+    
+    if (permission === 'granted') {
+      await registerServiceWorker();
+      return { granted: true };
     }
+    
+    return { granted: false, reason: permission };
+  } catch (error) {
+    console.error('Notification permission request failed:', error);
+    return { granted: false, reason: 'error' };
+  }
+};
+
+// Register service worker for push notifications
+const registerServiceWorker = async () => {
+  if ('serviceWorker' in navigator) {
     try {
-      App = require('@capacitor/app').App;
-    } catch (e) {
-      console.log('[Push] App plugin not available');
+      const registration = await navigator.serviceWorker.register('/sw.js');
+      console.log('Service Worker registered:', registration);
+      return registration;
+    } catch (error) {
+      console.error('Service Worker registration failed:', error);
     }
   }
-} catch (e) {
-  console.log('[Push] Capacitor not available, running in web mode');
-}
+};
 
-export const initPushNotifications = async () => {
-  if (!isNative || !PushNotifications) {
-    console.log('[Push] Web mode - push notifications disabled');
+// Get notification settings
+export const getNotificationSettings = () => {
+  const stored = localStorage.getItem(NOTIFICATION_SETTINGS_KEY);
+  if (stored) {
+    return { ...defaultSettings, ...JSON.parse(stored) };
+  }
+  return defaultSettings;
+};
+
+// Update notification settings
+export const updateNotificationSettings = (settings) => {
+  const current = getNotificationSettings();
+  const updated = { ...current, ...settings };
+  localStorage.setItem(NOTIFICATION_SETTINGS_KEY, JSON.stringify(updated));
+  return updated;
+};
+
+// Show local notification
+export const showNotification = async (title, options = {}) => {
+  if (getNotificationPermission() !== 'granted') {
+    console.warn('Notification permission not granted');
     return;
   }
+
+  const settings = getNotificationSettings();
   
+  // Check if this notification type is enabled
+  if (options.type && !settings[options.type]) {
+    return;
+  }
+
+  const defaultOptions = {
+    icon: '/paysible_icon_white.svg',
+    badge: '/paysible_icon_white.svg',
+    vibrate: [200, 100, 200],
+    tag: options.tag || 'paysible-notification',
+    renotify: true,
+    requireInteraction: false,
+    ...options,
+  };
+
   try {
-    // Request permissions
-    await PushNotifications.requestPermissions();
-
-    // Register with native push service
-    await PushNotifications.register();
-
-    // Listen for registration token
-    PushNotifications.addListener('registration', (token) => {
-      console.log('Push registration token:', token.value);
-      localStorage.setItem('pushToken', token.value);
-    });
-
-    // Listen for push notifications
-    PushNotifications.addListener('pushNotificationReceived', (notification) => {
-      console.log('Push received:', notification);
-      updateBadgeCount();
-    });
-
-    // Listen for push notification actions
-    PushNotifications.addListener('pushNotificationActionPerformed', (action) => {
-      console.log('Push action:', action);
-      updateBadgeCount();
-    });
-
-    // Listen for registration errors
-    PushNotifications.addListener('registrationError', (error) => {
-      console.error('Push registration error:', error.error);
-    });
+    if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+      const registration = await navigator.serviceWorker.ready;
+      await registration.showNotification(title, defaultOptions);
+    } else {
+      new Notification(title, defaultOptions);
+    }
   } catch (error) {
-    console.error('Push notifications init error:', error);
+    console.error('Failed to show notification:', error);
   }
 };
 
-export const setBadgeCount = async (count) => {
-  if (!isNative || !App) return;
-  
-  try {
-    await App.setBadgeCount({ count });
-  } catch (error) {
-    console.error('Badge count error:', error);
-  }
+// Notification helper functions for different types
+export const notifyTransaction = (type, amount, currency) => {
+  const titles = {
+    deposit: '💰 Deposit Received',
+    withdrawal: '📤 Withdrawal Processed',
+    conversion: '🔄 Conversion Complete',
+  };
+
+  showNotification(titles[type] || 'Transaction Update', {
+    body: `${type === 'deposit' ? '+' : '-'}${amount} ${currency}`,
+    type: 'transactions',
+    tag: `transaction-${Date.now()}`,
+  });
 };
 
-export const updateBadgeCount = async (count = 1) => {
-  if (!isNative || !App) return;
-  
-  try {
-    const current = await App.getBadgeCount();
-    await setBadgeCount(Math.max(0, current.count + count));
-  } catch (error) {
-    console.error('Badge update error:', error);
-  }
+export const notifyRateAlert = (fromCurrency, toCurrency, rate) => {
+  showNotification('📊 Rate Alert Triggered!', {
+    body: `${fromCurrency}/${toCurrency} reached ${rate}`,
+    type: 'rateAlerts',
+    tag: `rate-alert-${Date.now()}`,
+  });
 };
 
-export const clearBadgeCount = async () => {
-  if (!isNative || !App) return;
-  
-  try {
-    await setBadgeCount(0);
-  } catch (error) {
-    console.error('Badge clear error:', error);
-  }
+export const notifySecurity = (event) => {
+  const messages = {
+    login: '🔐 New login detected on your account',
+    password_change: '🔑 Your password was changed',
+    biometric_enabled: '👆 Biometric login enabled',
+  };
+
+  showNotification('Security Alert', {
+    body: messages[event] || 'Security update on your account',
+    type: 'security',
+    tag: `security-${Date.now()}`,
+    requireInteraction: true,
+  });
+};
+
+// Store FCM token for mobile push (future use)
+export const storeFCMToken = (token) => {
+  localStorage.setItem(FCM_TOKEN_KEY, token);
+};
+
+export const getFCMToken = () => {
+  return localStorage.getItem(FCM_TOKEN_KEY);
+};
+
+// Check if user has seen the notification prompt
+export const hasSeenNotificationPrompt = () => {
+  return localStorage.getItem('paysible_notification_prompt_seen') === 'true';
+};
+
+export const markNotificationPromptSeen = () => {
+  localStorage.setItem('paysible_notification_prompt_seen', 'true');
 };

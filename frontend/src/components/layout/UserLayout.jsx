@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import BackHeader from './BackHeader';
 import { useTabHistory } from '@/hooks/useTabHistory';
 import { useBackGesture } from '@/hooks/useBackGesture';
+import PostLoginPrompts from '@/components/shared/PostLoginPrompts';
 
 const navItems = [
   { path: '/', icon: Home, label: 'Home' },
@@ -82,6 +83,8 @@ export default function UserLayout() {
         aria-live="polite"
         aria-atomic="true"
       />
+      {/* Post-login prompts for biometric and notifications */}
+      <PostLoginPrompts />
     </div>
   );
 }

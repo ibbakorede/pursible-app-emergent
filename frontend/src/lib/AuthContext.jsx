@@ -70,6 +70,20 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const loginWithToken = async (token, userData) => {
+    try {
+      localStorage.setItem('auth_token', token);
+      localStorage.setItem('user', JSON.stringify(userData));
+      setUser(userData);
+      setIsAuthenticated(true);
+      setAuthError(null);
+      return { success: true };
+    } catch (error) {
+      console.error('[AuthContext] Login with token error:', error);
+      throw error;
+    }
+  };
+
   const register = async (data) => {
     try {
       console.log('[AuthContext] Calling register API for:', data.email);
@@ -111,6 +125,7 @@ export const AuthProvider = ({ children }) => {
       authError,
       appPublicSettings,
       login,
+      loginWithToken,
       register,
       logout,
       navigateToLogin,

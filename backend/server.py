@@ -293,6 +293,35 @@ async def login(data: UserLogin):
         )
     )
 
+class BiometricLoginRequest(BaseModel):
+    email: EmailStr
+
+@auth_router.post("/biometric-login", response_model=TokenResponse)
+async def biometric_login(data: BiometricLoginRequest):
+    """Login user via biometric authentication (client-side verified)"""
+    user = await db.users.find_one({"email": data.email}, {"_id": 0})
+    if not user:
+        raise HTTPException(status_code=401, detail="User not found")
+    
+    # Mark biometric login in user record
+    await db.users.update_one(
+        {"email": data.email},
+        {"$set": {"last_biometric_login": get_timestamp()}}
+    )
+    
+    token = create_jwt_token(user["id"], user["email"])
+    return TokenResponse(
+        success=True,
+        token=token,
+        user=UserResponse(
+            id=user["id"],
+            email=user["email"],
+            full_name=user.get("full_name"),
+            kyc_status=user.get("kyc_status"),
+            created_date=user.get("created_date", get_timestamp())
+        )
+    )
+
 @auth_router.get("/me", response_model=UserResponse)
 async def get_me(user: dict = Depends(get_current_user)):
     """Get current user"""

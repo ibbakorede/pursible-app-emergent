@@ -1,142 +1,143 @@
 import { useState, useEffect } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { base44 } from '@/api/base44Client';
-import { useAuth } from '@/lib/AuthContext';
+import { Bell, BellOff, TrendingUp, Shield, CreditCard, ChevronRight } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
-import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Bell, AlertCircle, CheckCircle } from 'lucide-react';
-import { usePushNotifications } from '@/hooks/usePushNotifications';
 import { toast } from 'sonner';
+import {
+  isNotificationSupported,
+  getNotificationPermission,
+  requestNotificationPermission,
+  getNotificationSettings,
+  updateNotificationSettings,
+} from '@/lib/pushNotifications';
 
 export default function NotificationSettings() {
-  const { user } = useAuth();
-  const queryClient = useQueryClient();
-  const { isSupported, isSubscribed, subscribe, unsubscribe } = usePushNotifications();
-  const [browserSupported, setBrowserSupported] = useState(false);
+  const [permission, setPermission] = useState('default');
+  const [settings, setSettings] = useState(getNotificationSettings());
+  const [requesting, setRequesting] = useState(false);
+  const supported = isNotificationSupported();
 
   useEffect(() => {
-    setBrowserSupported(isSupported);
-  }, [isSupported]);
+    setPermission(getNotificationPermission());
+  }, []);
 
-  const { data: preferences, isLoading } = useQuery({
-    queryKey: ['notification-prefs', user?.email],
-    queryFn: async () => {
-      const prefs = await base44.entities.NotificationPreference.filter({ user_email: user?.email });
-      return prefs.length > 0 ? prefs[0] : null;
-    },
-    enabled: !!user?.email,
-  });
-
-  const updatePrefsMutation = useMutation({
-    mutationFn: async (updates) => {
-      if (!preferences) {
-        return base44.entities.NotificationPreference.create({
-          user_email: user.email,
-          ...updates,
-        });
+  const handleRequestPermission = async () => {
+    setRequesting(true);
+    try {
+      const result = await requestNotificationPermission();
+      setPermission(getNotificationPermission());
+      
+      if (result.granted) {
+        toast.success('Notifications enabled!');
+      } else if (result.reason === 'denied') {
+        toast.error('Notifications blocked. Please enable in browser settings.');
       }
-      return base44.entities.NotificationPreference.update(preferences.id, updates);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['notification-prefs'] });
-      toast.success('Preferences updated');
-    },
-  });
-
-  const handleTogglePushNotifications = async (enabled) => {
-    if (enabled && !isSubscribed) {
-      const success = await subscribe();
-      if (success) {
-        await updatePrefsMutation.mutateAsync({ push_notifications_enabled: true });
-      } else {
-        toast.error('Failed to enable notifications');
-      }
-    } else if (!enabled && isSubscribed) {
-      await unsubscribe();
-      await updatePrefsMutation.mutateAsync({ push_notifications_enabled: false });
+    } catch (error) {
+      toast.error('Failed to request notification permission');
+    } finally {
+      setRequesting(false);
     }
   };
 
-  const handleToggleTransactionNotifications = (enabled) => {
-    updatePrefsMutation.mutate({ transaction_notifications: enabled });
+  const handleToggle = (key, value) => {
+    const updated = updateNotificationSettings({ [key]: value });
+    setSettings(updated);
+    toast.success('Notification preference saved');
   };
 
-  const handleToggleBalanceNotifications = (enabled) => {
-    updatePrefsMutation.mutate({ balance_change_notifications: enabled });
-  };
-
-  if (isLoading) {
-    return <div className="text-center py-8 text-muted-foreground">Loading preferences...</div>;
+  if (!supported) {
+    return (
+      <div className="bg-card border border-border rounded-2xl p-4">
+        <div className="flex items-center gap-3">
+          <div className="w-11 h-11 rounded-2xl bg-muted flex items-center justify-center flex-shrink-0">
+            <BellOff className="w-5 h-5 text-muted-foreground" />
+          </div>
+          <div>
+            <p className="text-sm font-semibold">Notifications Not Supported</p>
+            <p className="text-xs text-muted-foreground">Your browser doesn't support push notifications</p>
+          </div>
+        </div>
+      </div>
+    );
   }
 
-  return (
-    <div className="space-y-4">
-      {!browserSupported && (
-        <Card className="bg-amber-50 border-amber-200 p-4 flex items-start gap-3">
-          <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
-          <div>
-            <p className="text-sm font-semibold text-amber-900">Browser not supported</p>
-            <p className="text-xs text-amber-800">Push notifications are not available in your browser.</p>
+  if (permission !== 'granted') {
+    return (
+      <div className="bg-card border border-border rounded-2xl p-5">
+        <div className="flex items-start gap-4">
+          <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center flex-shrink-0">
+            <Bell className="w-6 h-6 text-primary" />
           </div>
-        </Card>
-      )}
+          <div className="flex-1">
+            <p className="text-sm font-bold mb-1">Enable Push Notifications</p>
+            <p className="text-xs text-muted-foreground mb-4">
+              Get instant alerts for transactions, rate changes, and security updates
+            </p>
+            <Button 
+              onClick={handleRequestPermission} 
+              disabled={requesting || permission === 'denied'}
+              className="rounded-xl"
+            >
+              {requesting ? 'Requesting...' : permission === 'denied' ? 'Blocked - Check Browser Settings' : 'Enable Notifications'}
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
-      <Card className="p-5 space-y-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Bell className="w-5 h-5 text-primary" />
-            <div>
-              <p className="font-semibold text-sm">Push Notifications</p>
-              <p className="text-xs text-muted-foreground">Get alerts on your device</p>
-            </div>
+  // Permission granted - show toggles
+  const notificationTypes = [
+    {
+      key: 'transactions',
+      icon: CreditCard,
+      bg: 'bg-emerald-50',
+      color: 'text-emerald-600',
+      title: 'Transaction Alerts',
+      desc: 'Deposits, withdrawals & conversions',
+    },
+    {
+      key: 'rateAlerts',
+      icon: TrendingUp,
+      bg: 'bg-blue-50',
+      color: 'text-blue-600',
+      title: 'Rate Alerts',
+      desc: 'When your target rate is reached',
+    },
+    {
+      key: 'security',
+      icon: Shield,
+      bg: 'bg-amber-50',
+      color: 'text-amber-600',
+      title: 'Security Alerts',
+      desc: 'Login attempts & password changes',
+    },
+  ];
+
+  return (
+    <div className="bg-card border border-border rounded-2xl divide-y divide-border overflow-hidden">
+      {/* Header */}
+      <div className="flex items-center gap-3 px-4 py-3 bg-emerald-50/50">
+        <Bell className="w-4 h-4 text-emerald-600" />
+        <p className="text-xs font-semibold text-emerald-700">Notifications Enabled</p>
+      </div>
+
+      {/* Notification type toggles */}
+      {notificationTypes.map(({ key, icon: Icon, bg, color, title, desc }) => (
+        <div key={key} className="flex items-center gap-4 p-4">
+          <div className={`w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0 ${bg}`}>
+            <Icon className={`w-5 h-5 ${color}`} />
+          </div>
+          <div className="flex-1">
+            <p className="text-sm font-semibold">{title}</p>
+            <p className="text-xs text-muted-foreground">{desc}</p>
           </div>
           <Switch
-            checked={isSubscribed && (preferences?.push_notifications_enabled ?? true)}
-            onCheckedChange={handleTogglePushNotifications}
-            disabled={!browserSupported || updatePrefsMutation.isPending}
+            checked={settings[key]}
+            onCheckedChange={(v) => handleToggle(key, v)}
           />
         </div>
-
-        {isSubscribed && (
-          <div className="flex items-center gap-2 text-xs text-emerald-600 bg-emerald-50 rounded-lg px-3 py-2">
-            <CheckCircle className="w-4 h-4" />
-            Notifications enabled for this device
-          </div>
-        )}
-      </Card>
-
-      {isSubscribed && (
-        <>
-          <Card className="p-5 space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="font-semibold text-sm">Transaction Notifications</p>
-                <p className="text-xs text-muted-foreground">Deposits and withdrawals</p>
-              </div>
-              <Switch
-                checked={preferences?.transaction_notifications ?? true}
-                onCheckedChange={handleToggleTransactionNotifications}
-                disabled={updatePrefsMutation.isPending}
-              />
-            </div>
-          </Card>
-
-          <Card className="p-5 space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="font-semibold text-sm">Balance Change Notifications</p>
-                <p className="text-xs text-muted-foreground">Any wallet balance updates</p>
-              </div>
-              <Switch
-                checked={preferences?.balance_change_notifications ?? true}
-                onCheckedChange={handleToggleBalanceNotifications}
-                disabled={updatePrefsMutation.isPending}
-              />
-            </div>
-          </Card>
-        </>
-      )}
+      ))}
     </div>
   );
 }
