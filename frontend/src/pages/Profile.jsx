@@ -48,6 +48,7 @@ export default function Profile() {
         { icon: TrendingUp, label: 'Rate Alerts', path: '/rate-alerts', desc: 'Get notified on rates' },
         { icon: Target, label: 'Financial Goals', path: '/goals', desc: 'Track savings & investments' },
         { icon: Gift, label: 'Referrals', path: '/referrals', desc: 'Earn bonuses inviting friends' },
+        { icon: isDark ? Moon : Sun, label: 'Theme', desc: isDark ? 'Dark mode' : 'Light mode', isThemeToggle: true },
       ],
     },
     {
@@ -100,52 +101,45 @@ export default function Profile() {
         <div key={section.title}>
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 px-1">{section.title}</p>
           <div className="bg-card border border-border rounded-2xl divide-y divide-border overflow-hidden">
-            {section.items.map(({ icon: Icon, label, path, desc, badge }) => (
-              <Link key={label} to={path} className="flex items-center gap-3.5 px-4 py-4 hover:bg-muted/50 transition-colors focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background" aria-label={label}>
-                <div className="w-9 h-9 rounded-xl bg-muted flex items-center justify-center flex-shrink-0">
-                  <Icon className="w-4.5 h-4.5 text-muted-foreground" style={{ width: '1.1rem', height: '1.1rem' }} />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold">{label}</p>
-                  <p className="text-xs text-muted-foreground">{desc}</p>
-                </div>
-                {badge && (
-                  <span className={`text-xs font-semibold px-2 py-0.5 rounded-full capitalize ${(KYC_STATUS_CONFIG[badge] || KYC_STATUS_CONFIG.not_started).bg} ${(KYC_STATUS_CONFIG[badge] || KYC_STATUS_CONFIG.not_started).text}`}>
-                    {badge.replace(/_/g, ' ')}
-                  </span>
-                )}
-                <ChevronRight className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-              </Link>
+            {section.items.map(({ icon: Icon, label, path, desc, badge, isThemeToggle }) => (
+              isThemeToggle ? (
+                <button 
+                  key={label}
+                  onClick={toggleTheme}
+                  className="w-full flex items-center gap-3.5 px-4 py-4 hover:bg-muted/50 transition-colors"
+                >
+                  <div className="w-9 h-9 rounded-xl bg-muted flex items-center justify-center flex-shrink-0">
+                    <Icon className="w-4.5 h-4.5 text-muted-foreground" style={{ width: '1.1rem', height: '1.1rem' }} />
+                  </div>
+                  <div className="flex-1 min-w-0 text-left">
+                    <p className="text-sm font-semibold">{label}</p>
+                    <p className="text-xs text-muted-foreground">{desc}</p>
+                  </div>
+                  <div className={`relative w-12 h-7 rounded-full transition-colors ${isDark ? 'bg-primary' : 'bg-muted'}`}>
+                    <div className={`absolute top-1 w-5 h-5 rounded-full bg-white shadow-md transition-transform ${isDark ? 'translate-x-6' : 'translate-x-1'}`} />
+                  </div>
+                </button>
+              ) : (
+                <Link key={label} to={path} className="flex items-center gap-3.5 px-4 py-4 hover:bg-muted/50 transition-colors focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background" aria-label={label}>
+                  <div className="w-9 h-9 rounded-xl bg-muted flex items-center justify-center flex-shrink-0">
+                    <Icon className="w-4.5 h-4.5 text-muted-foreground" style={{ width: '1.1rem', height: '1.1rem' }} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold">{label}</p>
+                    <p className="text-xs text-muted-foreground">{desc}</p>
+                  </div>
+                  {badge && (
+                    <span className={`text-xs font-semibold px-2 py-0.5 rounded-full capitalize ${(KYC_STATUS_CONFIG[badge] || KYC_STATUS_CONFIG.not_started).bg} ${(KYC_STATUS_CONFIG[badge] || KYC_STATUS_CONFIG.not_started).text}`}>
+                      {badge.replace(/_/g, ' ')}
+                    </span>
+                  )}
+                  <ChevronRight className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                </Link>
+              )
             ))}
           </div>
         </div>
       ))}
-
-      {/* Theme Toggle */}
-      <div>
-        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 px-1">Appearance</p>
-        <div className="bg-card border border-border rounded-2xl overflow-hidden">
-          <button 
-            onClick={toggleTheme}
-            className="w-full flex items-center gap-3.5 px-4 py-4 hover:bg-muted/50 transition-colors"
-          >
-            <div className="w-9 h-9 rounded-xl bg-muted flex items-center justify-center flex-shrink-0">
-              {isDark ? (
-                <Moon className="w-4.5 h-4.5 text-muted-foreground" style={{ width: '1.1rem', height: '1.1rem' }} />
-              ) : (
-                <Sun className="w-4.5 h-4.5 text-muted-foreground" style={{ width: '1.1rem', height: '1.1rem' }} />
-              )}
-            </div>
-            <div className="flex-1 min-w-0 text-left">
-              <p className="text-sm font-semibold">Theme</p>
-              <p className="text-xs text-muted-foreground">{isDark ? 'Dark mode' : 'Light mode'}</p>
-            </div>
-            <div className={`relative w-12 h-7 rounded-full transition-colors ${isDark ? 'bg-primary' : 'bg-muted'}`}>
-              <div className={`absolute top-1 w-5 h-5 rounded-full bg-white shadow-md transition-transform ${isDark ? 'translate-x-6' : 'translate-x-1'}`} />
-            </div>
-          </button>
-        </div>
-      </div>
 
       <button
         onClick={() => base44.auth.logout('/')}
