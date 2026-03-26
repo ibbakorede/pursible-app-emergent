@@ -111,6 +111,8 @@ REACT_APP_BACKEND_URL=http://localhost:8001
 
 - 📘 [API Documentation](docs/API.md)
 - 🛠️ [Setup Guide](docs/SETUP.md)
+- 🏗️ [Architecture](docs/ARCHITECTURE.md)
+- 🔐 [Security Guidelines](docs/SECURITY.md)
 - 📋 [Product Requirements](memory/PRD.md)
 
 ---

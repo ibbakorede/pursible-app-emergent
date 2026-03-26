@@ -106,6 +106,7 @@ export default function Profile() {
                 <button 
                   key={label}
                   onClick={toggleTheme}
+                  data-testid="theme-toggle-button"
                   className="w-full flex items-center gap-3.5 px-4 py-4 hover:bg-muted/50 transition-colors"
                 >
                   <div className="w-9 h-9 rounded-xl bg-muted flex items-center justify-center flex-shrink-0">
@@ -115,7 +116,10 @@ export default function Profile() {
                     <p className="text-sm font-semibold">{label}</p>
                     <p className="text-xs text-muted-foreground">{desc}</p>
                   </div>
-                  <div className={`relative w-12 h-7 rounded-full transition-colors ${isDark ? 'bg-primary' : 'bg-muted'}`}>
+                  <div 
+                    data-testid="theme-toggle-switch"
+                    className={`relative w-12 h-7 rounded-full transition-colors ${isDark ? 'bg-primary' : 'bg-muted'}`}
+                  >
                     <div className={`absolute top-1 w-5 h-5 rounded-full bg-white shadow-md transition-transform ${isDark ? 'translate-x-6' : 'translate-x-1'}`} />
                   </div>
                 </button>

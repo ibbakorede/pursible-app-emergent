@@ -198,10 +198,14 @@
 - CRUD operations
 - Validation errors
 - Edge cases
+- Full frontend testing (all pages verified)
 
 ### Test Credentials
 - **Email:** testuser123@paysible.com
 - **Password:** Test123!
+
+### Test Reports
+- `/app/test_reports/iteration_5.json` (Latest - All passing)
 
 ---
 
@@ -225,7 +229,13 @@
 
 ## Changelog
 
-### March 26, 2026
+### March 26, 2026 (v1.0.1)
+- Added Security Guidelines documentation
+- Added Architecture documentation
+- Enhanced test coverage (26/26 backend tests + full frontend tests)
+- Added data-testid attributes for theme toggle
+
+### March 26, 2026 (v1.0.0)
 - Implemented biometric login (WebAuthn)
 - Added push notifications (service worker)
 - Updated currency logos (flags + crypto icons)

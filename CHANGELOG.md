@@ -85,6 +85,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.0.1] - 2026-03-26
+
+### Added
+- **Documentation**
+  - Security guidelines (`/docs/SECURITY.md`) with authentication, data protection, and production checklist
+  - Architecture documentation (`/docs/ARCHITECTURE.md`) with system diagrams and database schema
+  - Enhanced test coverage documentation
+
+### Improved
+- **Testing**
+  - Comprehensive test run: 26/26 backend tests passing (100%)
+  - Full frontend testing: All pages and flows verified working
+  - Added explicit `data-testid` attributes for theme toggle components
+
+### Technical
+- Profile page theme toggle now has `data-testid="theme-toggle-button"` and `data-testid="theme-toggle-switch"` for easier automated testing
+
+---
+
 ## [Unreleased]
 
 ### Planned
