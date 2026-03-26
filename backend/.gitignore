@@ -1,0 +1,43 @@
+# Environment files - NEVER commit these
+.env
+.env.*
+*.env
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+.venv/
+ENV/
+
+# Virtual environments
+env/
+.env/
+
+# Logs
+*.log
+
+# Database
+*.db
+*.sqlite3
+
+# Uploads (user data)
+uploads/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
