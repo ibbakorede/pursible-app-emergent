@@ -71,6 +71,10 @@
 - [x] Notification system
 - [x] Webhook handlers
 - [x] Frontend migration to Emergent
+- [x] **Deposit Funds UI** - 3 deposit methods (USD Wire, Stablecoin, NGN Bank) with account details
+- [x] **Currency Conversion Rates** - `/api/rates` endpoint with seeded exchange rates
+- [x] **Bank Selection BottomSheet** - Fixed CSS overflow/cutoff issue
+- [x] **KYC File Upload** - `/api/upload` endpoint for document uploads
 
 ## Third-Party Integrations (MOCKED - API Keys Required)
 | Provider | Purpose | Status |
@@ -115,6 +119,14 @@
 3. Test real payment flows end-to-end
 4. Set up Capacitor for mobile builds
 5. Configure webhook URLs with providers
+
+## Bug Fixes Completed (March 26, 2026)
+| Issue | Description | Fix Applied |
+|-------|-------------|-------------|
+| Bug 1 | Deposit Funds tab UI incomplete | Added `DepositAccount` entity to apiClient.js, seeded 3 deposit accounts |
+| Bug 2 | Currency conversion "no rate available" | Added `/api/rates` endpoint, seeded 10 currency pairs |
+| Bug 3 | Bank account list cut off at top | Fixed BottomSheetSelect.jsx CSS with proper max-height and overflow |
+| Bug 4 | KYC file upload fails | Added `/api/upload` endpoint + `integrations.Core.UploadFile` in apiClient.js |
 
 ## Architecture Notes
 - **Backend**: FastAPI running on port 8001
