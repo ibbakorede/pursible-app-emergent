@@ -96,6 +96,12 @@ export default function BottomSheetSelect({
               animate="visible"
               exit="exit"
               transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+              style={{ 
+                maxHeight: '70vh',
+                // Prevent keyboard from pushing the sheet
+                position: 'fixed',
+                bottom: 0
+              }}
             >
               {/* Handle bar */}
               <div className="flex justify-center pt-3 pb-1">
@@ -103,9 +109,9 @@ export default function BottomSheetSelect({
               </div>
 
               {/* Content */}
-              <div className="px-4 pt-3 pb-6 flex flex-col" style={{ maxHeight: 'calc(80vh - env(safe-area-inset-bottom, 0px))' }}>
+              <div className="px-4 pt-2 pb-6 flex flex-col h-full" style={{ maxHeight: 'calc(70vh - 24px)' }}>
                 {/* Header */}
-                <div className="flex items-center justify-between mb-4 flex-shrink-0">
+                <div className="flex items-center justify-between mb-3 flex-shrink-0">
                     <h2 className="text-lg font-semibold">{placeholder || 'Select option'}</h2>
                     <button
                       onClick={() => onOpenChange(false)}
@@ -118,21 +124,26 @@ export default function BottomSheetSelect({
 
                 {/* Search input if many options */}
                 {options && options.length > 5 && (
-                  <div className="mb-4 relative flex-shrink-0">
+                  <div className="mb-3 relative flex-shrink-0">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                     <Input
                       placeholder={searchPlaceholder || 'Search...'}
                       className="pl-10 rounded-xl"
                       id="bottom-sheet-search"
-                      autoFocus
                       value={searchQuery}
                       onChange={e => setSearchQuery(e.target.value)}
                     />
                   </div>
                 )}
 
-                {/* Options list - scrollable area with proper constraints */}
-                <div className="flex-1 overflow-y-auto space-y-2 overscroll-contain" style={{ maxHeight: 'calc(60vh - 100px)', minHeight: '120px' }}>
+                {/* Options list - scrollable area starting from top */}
+                <div 
+                  className="flex-1 overflow-y-auto space-y-2 overscroll-contain -mx-4 px-4"
+                  style={{ 
+                    maxHeight: 'calc(70vh - 140px)',
+                    WebkitOverflowScrolling: 'touch'
+                  }}
+                >
                   {filteredOptions?.map((option) => (
                     <button
                       key={option.id || option.value}

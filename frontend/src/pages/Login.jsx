@@ -45,20 +45,20 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-600 via-purple-700 to-indigo-800 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         {/* Logo */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-white/20 mb-4">
-            <span className="text-3xl font-bold text-white">P</span>
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-primary mb-4">
+            <span className="text-3xl font-bold text-primary-foreground">P</span>
           </div>
-          <h1 className="text-3xl font-bold text-white mb-2">Paysible</h1>
-          <p className="text-white/70">Your Global Money App</p>
+          <h1 className="text-3xl font-bold text-foreground mb-2">Paysible</h1>
+          <p className="text-muted-foreground">Your Global Money App</p>
         </div>
 
         {/* Card */}
-        <div className="bg-white rounded-3xl p-8 shadow-2xl">
-          <h2 className="text-xl font-bold text-center mb-6">
+        <div className="bg-card border border-border rounded-3xl p-8 shadow-2xl">
+          <h2 className="text-xl font-bold text-center text-foreground mb-6">
             {isLogin ? 'Welcome back' : 'Create account'}
           </h2>
 
@@ -135,7 +135,7 @@ export default function Login() {
 
             <Button
               type="submit"
-              className="w-full rounded-xl h-12 bg-purple-600 hover:bg-purple-700 text-base font-semibold"
+              className="w-full rounded-xl h-12 bg-primary hover:bg-primary/90 text-primary-foreground text-base font-semibold"
               disabled={loading}
               data-testid="submit-button"
             >
@@ -154,7 +154,7 @@ export default function Login() {
                 setIsLogin(!isLogin);
                 setError('');
               }}
-              className="text-sm text-purple-600 hover:text-purple-700 font-medium"
+              className="text-sm text-primary hover:text-primary/80 font-medium"
             >
               {isLogin ? "Don't have an account? Sign up" : 'Already have an account? Sign in'}
             </button>
@@ -162,7 +162,7 @@ export default function Login() {
         </div>
 
         {/* Footer */}
-        <p className="text-center text-white/50 text-xs mt-6">
+        <p className="text-center text-muted-foreground text-xs mt-6">
           By continuing, you agree to our Terms of Service and Privacy Policy
         </p>
       </div>
