@@ -43,23 +43,25 @@ export default function UserLayout() {
       >
         <Outlet />
       </motion.main>
-      {/* Bottom Navigation - 44px+ touch targets, safe area insets */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-card border-t border-border z-50 pb-safe safe:pb-[max(env(safe-area-inset-bottom),0.5rem)]">
-        <div className="max-w-lg mx-auto flex items-center justify-around px-1 min-h-[48px]">
+      {/* Bottom Navigation - Enhanced & Prominent */}
+      <nav className="fixed bottom-0 left-0 right-0 z-50 bg-card/95 backdrop-blur-lg border-t border-border shadow-[0_-4px_20px_rgba(0,0,0,0.1)]">
+        <div className="max-w-lg mx-auto flex items-center justify-around px-2 py-2 pb-[max(env(safe-area-inset-bottom),8px)]">
           {navItems.map(({ path, icon: Icon, label }) => {
             const isActive = path === '/' ? location.pathname === '/' : location.pathname.startsWith(path);
             return (
               <Link
                 key={path}
                 to={path}
-                className={`flex flex-col items-center justify-center gap-0.5 min-h-[44px] min-w-[44px] px-3 rounded-xl transition-colors focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background ${
-                  isActive ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
+                className={`flex flex-col items-center justify-center gap-1 py-2 px-4 rounded-2xl transition-all ${
+                  isActive 
+                    ? 'bg-primary text-primary-foreground shadow-md scale-105' 
+                    : 'text-muted-foreground hover:text-foreground hover:bg-muted'
                 }`}
                 aria-label={`Navigate to ${label}`}
                 aria-current={isActive ? 'page' : undefined}
               >
                 <Icon className="w-5 h-5" strokeWidth={isActive ? 2.5 : 2} />
-                <span className="text-[10px] font-medium">{label}</span>
+                <span className={`text-[10px] font-semibold ${isActive ? 'font-bold' : ''}`}>{label}</span>
               </Link>
             );
           })}

@@ -173,19 +173,18 @@ export default function WalletOverview() {
         <QuickAction to="/convert" icon={<RefreshCcw className="w-5 h-5" />} label="Swap" color="blue" />
       </div>
 
-
-      {/* Currency converter */}
-      <CurrencyConverter walletData={walletData} rateMap={rateMap} />
-
-      {/* Individual wallet cards */}
+      {/* Individual wallet cards - MOVED UP */}
       <div>
-        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Wallets</p>
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">My Wallets</p>
         <div className="space-y-3">
           {walletData.map(w => (
             <WalletCard key={w.currency} wallet={w} hideBalance={hideBalance} />
           ))}
         </div>
       </div>
+
+      {/* Currency converter - MOVED DOWN */}
+      <CurrencyConverter walletData={walletData} rateMap={rateMap} />
       </div>
     </RefreshableList>
   );

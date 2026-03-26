@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Search, X } from 'lucide-react';
-import { Input } from '@/components/ui/input';
 
 export default function BottomSheetSelect({
   open,
@@ -14,39 +13,28 @@ export default function BottomSheetSelect({
   renderOption,
   children,
 }) {
-  const contentRef = useRef(null);
-  const startYRef = useRef(0);
   const [searchQuery, setSearchQuery] = useState('');
+  const searchInputRef = useRef(null);
+  const listRef = useRef(null);
 
+  // Reset search when closed
   useEffect(() => {
-    if (!open) setSearchQuery('');
+    if (!open) {
+      setSearchQuery('');
+    }
   }, [open]);
 
+  // Prevent body scroll when open
   useEffect(() => {
-    const handleTouchStart = (e) => {
-      startYRef.current = e.touches[0].clientY;
-    };
-
-    const handleTouchEnd = (e) => {
-      const endY = e.changedTouches[0].clientY;
-      const delta = endY - startYRef.current;
-      if (delta > 50) {
-        onOpenChange(false);
-      }
-    };
-
-    if (open && contentRef.current) {
-      contentRef.current.addEventListener('touchstart', handleTouchStart);
-      contentRef.current.addEventListener('touchend', handleTouchEnd);
+    if (open) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
     }
-
     return () => {
-      if (contentRef.current) {
-        contentRef.current.removeEventListener('touchstart', handleTouchStart);
-        contentRef.current.removeEventListener('touchend', handleTouchEnd);
-      }
+      document.body.style.overflow = '';
     };
-  }, [open, onOpenChange]);
+  }, [open]);
 
   const filteredOptions = options && searchQuery
     ? options.filter(opt =>
@@ -54,16 +42,10 @@ export default function BottomSheetSelect({
       )
     : options;
 
-  const backdropVariants = {
-    hidden: { opacity: 0 },
-    visible: { opacity: 1 },
-    exit: { opacity: 0 },
-  };
-
-  const sheetVariants = {
-    hidden: { y: '100%' },
-    visible: { y: 0 },
-    exit: { y: '100%' },
+  const handleSearchClick = () => {
+    if (searchInputRef.current) {
+      searchInputRef.current.focus();
+    }
   };
 
   return (
@@ -72,6 +54,7 @@ export default function BottomSheetSelect({
         <button
           onClick={() => onOpenChange(true)}
           className="w-full text-left"
+          type="button"
         >
           {children}
         </button>
@@ -80,88 +63,95 @@ export default function BottomSheetSelect({
       <AnimatePresence>
         {open && (
           <>
+            {/* Backdrop */}
             <motion.div
-              className="fixed inset-0 bg-black/30 z-40"
-              variants={backdropVariants}
-              initial="hidden"
-              animate="visible"
-              exit="exit"
+              className="fixed inset-0 bg-black/50 z-[100]"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
               onClick={() => onOpenChange(false)}
             />
+            
+            {/* Sheet */}
             <motion.div
-              ref={contentRef}
-              className="fixed bottom-0 left-0 right-0 z-50 bg-background rounded-t-3xl max-w-lg mx-auto shadow-2xl"
-              variants={sheetVariants}
-              initial="hidden"
-              animate="visible"
-              exit="exit"
-              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-              style={{ 
-                maxHeight: '70vh',
-                // Prevent keyboard from pushing the sheet
-                position: 'fixed',
-                bottom: 0
-              }}
+              className="fixed inset-x-0 bottom-0 z-[101] bg-background rounded-t-3xl shadow-2xl"
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 30, stiffness: 300 }}
+              style={{ maxHeight: '75vh' }}
             >
               {/* Handle bar */}
-              <div className="flex justify-center pt-3 pb-1">
-                <div className="w-12 h-1.5 rounded-full bg-muted" />
+              <div className="flex justify-center pt-3 pb-2">
+                <div className="w-10 h-1 rounded-full bg-muted-foreground/30" />
               </div>
 
-              {/* Content */}
-              <div className="px-4 pt-2 pb-6 flex flex-col h-full" style={{ maxHeight: 'calc(70vh - 24px)' }}>
-                {/* Header */}
-                <div className="flex items-center justify-between mb-3 flex-shrink-0">
-                    <h2 className="text-lg font-semibold">{placeholder || 'Select option'}</h2>
-                    <button
-                      onClick={() => onOpenChange(false)}
-                      className="p-1.5 rounded-lg hover:bg-muted transition-colors focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
-                      aria-label="Close bottom sheet"
-                    >
-                      <X className="w-5 h-5" />
-                    </button>
-                  </div>
+              {/* Header */}
+              <div className="flex items-center justify-between px-4 pb-3">
+                <h2 className="text-lg font-bold">{placeholder || 'Select option'}</h2>
+                <button
+                  onClick={() => onOpenChange(false)}
+                  className="p-2 rounded-full bg-muted hover:bg-muted/80 transition-colors"
+                  aria-label="Close"
+                  type="button"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
 
-                {/* Search input if many options */}
-                {options && options.length > 5 && (
-                  <div className="mb-3 relative flex-shrink-0">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                    <Input
+              {/* Search input */}
+              {options && options.length > 5 && (
+                <div className="px-4 pb-3">
+                  <div 
+                    className="relative flex items-center bg-muted rounded-xl border border-border focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20"
+                    onClick={handleSearchClick}
+                  >
+                    <Search className="absolute left-3 w-5 h-5 text-muted-foreground" />
+                    <input
+                      ref={searchInputRef}
+                      type="text"
                       placeholder={searchPlaceholder || 'Search...'}
-                      className="pl-10 rounded-xl"
-                      id="bottom-sheet-search"
                       value={searchQuery}
                       onChange={e => setSearchQuery(e.target.value)}
+                      className="w-full bg-transparent pl-11 pr-4 py-3 text-sm outline-none placeholder:text-muted-foreground"
+                      autoComplete="off"
+                      autoCorrect="off"
+                      autoCapitalize="off"
                     />
                   </div>
-                )}
+                </div>
+              )}
 
-                {/* Options list - scrollable area starting from top */}
-                <div 
-                  className="flex-1 overflow-y-auto space-y-2 overscroll-contain -mx-4 px-4"
-                  style={{ 
-                    maxHeight: 'calc(70vh - 140px)',
-                    WebkitOverflowScrolling: 'touch'
-                  }}
-                >
-                  {filteredOptions?.map((option) => (
-                    <button
-                      key={option.id || option.value}
-                      onClick={() => {
-                        onValueChange(option.id || option.value);
-                        onOpenChange(false);
-                      }}
-                      className={`w-full text-left px-4 py-3 rounded-xl transition-all ${
-                        value === (option.id || option.value)
-                          ? 'bg-primary text-primary-foreground'
-                          : 'bg-card border border-border hover:border-primary/50'
-                      }`}
-                    >
-                      {renderOption
-                        ? renderOption(option)
-                        : option.label || option.name}
-                    </button>
-                  ))}
+              {/* Options list */}
+              <div 
+                ref={listRef}
+                className="overflow-y-auto overscroll-contain px-4 pb-6"
+                style={{ maxHeight: 'calc(75vh - 140px)' }}
+              >
+                <div className="space-y-2">
+                  {filteredOptions?.length === 0 ? (
+                    <p className="text-center text-muted-foreground py-8">No results found</p>
+                  ) : (
+                    filteredOptions?.map((option) => (
+                      <button
+                        key={option.id || option.value}
+                        onClick={() => {
+                          onValueChange(option.id || option.value);
+                          onOpenChange(false);
+                        }}
+                        type="button"
+                        className={`w-full text-left px-4 py-3.5 rounded-xl transition-all ${
+                          value === (option.id || option.value)
+                            ? 'bg-primary text-primary-foreground font-semibold'
+                            : 'bg-card border border-border hover:border-primary/50 hover:bg-muted/50'
+                        }`}
+                      >
+                        {renderOption
+                          ? renderOption(option)
+                          : <span className="font-medium">{option.label || option.name}</span>}
+                      </button>
+                    ))
+                  )}
                 </div>
               </div>
             </motion.div>
