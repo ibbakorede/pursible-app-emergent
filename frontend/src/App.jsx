@@ -80,6 +80,7 @@ const Goals = lazy(() => import('@/pages/Goals'));
 const Referrals = lazy(() => import('@/pages/Referrals'));
 const TransactionReceipt = lazy(() => import('@/pages/TransactionReceipt'));
 const MarketComparison = lazy(() => import('@/pages/MarketComparison'));
+const DesignPreview = lazy(() => import('@/pages/DesignPreview'));
 
 // Admin pages - lazy loaded for better performance
 const AdminOverview = lazy(() => import('@/pages/admin/AdminOverview'));
@@ -106,6 +107,18 @@ const AdminLoadingFallback = () => (
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin, isAuthenticated, user } = useAuth();
+  
+  // Check if we're on the design preview route (allow without auth)
+  const isDesignPreview = window.location.pathname === '/design-preview';
+  if (isDesignPreview) {
+    return (
+      <RouteTransition>
+        <Routes>
+          <Route path="/design-preview" element={<Suspense fallback={<AdminLoadingFallback />}><DesignPreview /></Suspense>} />
+        </Routes>
+      </RouteTransition>
+    );
+  }
 
   // Show loading state
   if (isLoadingPublicSettings || isLoadingAuth) {
@@ -132,6 +145,9 @@ const AuthenticatedApp = () => {
   return (
     <RouteTransition>
       <Routes>
+        {/* Design Preview - public route for approval (temporary) */}
+        <Route path="/design-preview" element={<Suspense fallback={<AdminLoadingFallback />}><DesignPreview /></Suspense>} />
+
         {/* All user pages — UserLayout provides the persistent bottom nav */}
         <Route element={<UserLayout />}>
           <Route path="/" element={<Suspense fallback={<AdminLoadingFallback />}><Home /></Suspense>} />
