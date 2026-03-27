@@ -85,6 +85,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.0.2] - 2026-03-26
+
+### Changed
+- **Login Page Redesign**
+  - Removed "Welcome back" heading for cleaner UI
+  - Added animated gradient background with glow effects
+  - Added feature badges (Secure, Instant, Simple)
+  - Implemented glass-morphism card design with backdrop blur
+  - Added modern tab switcher for Sign In/Sign Up
+  - Enhanced input fields with glow effects on focus
+  - Improved typography with uppercase tracking labels
+  - Added "Forgot password?" link
+  - Better visual hierarchy and spacing
+
+---
+
 ## [1.0.1] - 2026-03-26
 
 ### Added

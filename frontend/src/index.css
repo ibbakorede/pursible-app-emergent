@@ -124,8 +124,15 @@
   button, [role="button"], [role="tab"] {
     @apply select-none;
   }
-  
-  /* Enhanced focus indicators for accessibility */
+}
+
+@layer utilities {
+  .h-13 {
+    height: 3.25rem;
+  }
+}
+
+@layer base {
   button:focus-visible,
   [role="button"]:focus-visible,
   [role="tab"]:focus-visible,
