@@ -1,13 +1,14 @@
-import { Outlet, Link, useLocation } from 'react-router-dom';
+import { Outlet, Link, useLocation, Navigate } from 'react-router-dom';
 import { 
   LayoutDashboard, Users, ShieldCheck, ArrowLeftRight, BookOpen, 
   AlertTriangle, Headphones, FileText, Settings, LogOut, Wallet,
-  CreditCard, Menu, X
+  CreditCard, Menu, X, ShieldOff
 } from 'lucide-react';
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
+import { useAuth } from '@/lib/AuthContext';
 
 const sidebarItems = [
   { path: '/admin', icon: LayoutDashboard, label: 'Overview', exact: true },
@@ -26,6 +27,27 @@ const sidebarItems = [
 export default function AdminLayout() {
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { user } = useAuth();
+
+  // Check if user is admin
+  if (!user || user.role !== 'admin') {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <div className="text-center max-w-md">
+          <div className="w-16 h-16 bg-destructive/10 rounded-full flex items-center justify-center mx-auto mb-4">
+            <ShieldOff className="w-8 h-8 text-destructive" />
+          </div>
+          <h1 className="text-2xl font-bold mb-2">Access Denied</h1>
+          <p className="text-muted-foreground mb-6">
+            You don't have permission to access the admin dashboard. This area is restricted to administrators only.
+          </p>
+          <Link to="/">
+            <Button>Return to App</Button>
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   const isActive = (item) => {
     if (item.exact) return location.pathname === item.path;

@@ -172,6 +172,12 @@ async def get_optional_user(credentials: HTTPAuthorizationCredentials = Depends(
     except Exception:
         return None
 
+async def get_admin_user(user: dict = Depends(get_current_user)):
+    """Dependency to ensure the user is an admin"""
+    if not user or user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+    return user
+
 async def log_error(function_name: str, error_message: str, user_email: str = None, provider: str = None):
     """Log errors to AppError collection"""
     try:
@@ -1474,27 +1480,12 @@ async def seed_demo_data():
 # ═══════════════════════════════════════════════════════════════════════════════
 
 @api_router.post("/admin/promote")
-async def promote_to_admin(data: dict, user: dict = Depends(get_current_user)):
-    """Promote a user to admin role (only existing admins can do this, or first user becomes admin)"""
+async def promote_to_admin(data: dict, user: dict = Depends(get_admin_user)):
+    """Promote a user to admin role (only admins can do this)"""
     target_email = data.get("email")
     
     if not target_email:
         raise HTTPException(status_code=400, detail="Email is required")
-    
-    # Check if any admin exists
-    existing_admin = await db.users.find_one({"role": "admin"})
-    
-    # If no admin exists, allow the current user to become admin
-    if not existing_admin:
-        await db.users.update_one(
-            {"email": user["email"]},
-            {"$set": {"role": "admin"}}
-        )
-        return {"success": True, "message": f"You are now an admin", "email": user["email"]}
-    
-    # Otherwise, only admins can promote others
-    if user.get("role") != "admin":
-        raise HTTPException(status_code=403, detail="Only admins can promote users")
     
     # Promote the target user
     result = await db.users.update_one(
@@ -1507,14 +1498,50 @@ async def promote_to_admin(data: dict, user: dict = Depends(get_current_user)):
     
     return {"success": True, "message": f"User {target_email} is now an admin"}
 
-@api_router.post("/admin/make-me-admin")
-async def make_me_admin(user: dict = Depends(get_current_user)):
-    """Quick endpoint to make the current logged-in user an admin"""
-    await db.users.update_one(
-        {"email": user["email"]},
-        {"$set": {"role": "admin"}}
+@api_router.post("/admin/demote")
+async def demote_from_admin(data: dict, user: dict = Depends(get_admin_user)):
+    """Remove admin role from a user (only admins can do this)"""
+    target_email = data.get("email")
+    
+    if not target_email:
+        raise HTTPException(status_code=400, detail="Email is required")
+    
+    # Can't demote yourself
+    if target_email == user["email"]:
+        raise HTTPException(status_code=400, detail="Cannot demote yourself")
+    
+    result = await db.users.update_one(
+        {"email": target_email},
+        {"$unset": {"role": ""}}
     )
-    return {"success": True, "message": "You are now an admin. Refresh the page to see the Admin Dashboard link in your Profile."}
+    
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    return {"success": True, "message": f"User {target_email} is no longer an admin"}
+
+# Admin data endpoints
+@api_router.get("/admin/users")
+async def get_all_users(user: dict = Depends(get_admin_user)):
+    """Get all users (admin only)"""
+    users = await db.users.find({}, {"_id": 0, "password_hash": 0}).to_list(1000)
+    return {"success": True, "users": users}
+
+@api_router.get("/admin/stats")
+async def get_admin_stats(user: dict = Depends(get_admin_user)):
+    """Get admin dashboard stats (admin only)"""
+    total_users = await db.users.count_documents({})
+    pending_kyc = await db.kyc_records.count_documents({"status": {"$in": ["pending", "in_review"]}})
+    total_transactions = await db.transactions.count_documents({})
+    
+    return {
+        "success": True,
+        "stats": {
+            "total_users": total_users,
+            "pending_kyc": pending_kyc,
+            "total_transactions": total_transactions
+        }
+    }
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # HEALTH CHECK
