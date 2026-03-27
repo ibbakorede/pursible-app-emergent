@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Save, User, Mail, Shield, Calendar, Globe, MapPin, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Save, User, Mail, Shield, Calendar, Globe, MapPin, AlertCircle, Phone } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
@@ -52,7 +52,8 @@ export default function ProfileEdit() {
     full_name: '',
     date_of_birth: '',
     nationality: '',
-    address: ''
+    address: '',
+    phone: ''
   });
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
@@ -67,10 +68,67 @@ export default function ProfileEdit() {
         full_name: u?.full_name || '',
         date_of_birth: u?.date_of_birth || '',
         nationality: u?.nationality || '',
-        address: u?.address || ''
+        address: u?.address || '',
+        phone: u?.phone || ''
       });
     });
   }, []);
+
+  // Validate name - only letters, spaces, and hyphens allowed
+  const validateNameCharacters = (value) => {
+    const nameRegex = /^[a-zA-Z\s\-']+$/;
+    return nameRegex.test(value);
+  };
+
+  // Validate phone - only numbers allowed
+  const validatePhoneCharacters = (value) => {
+    const phoneRegex = /^[0-9+\s]+$/;
+    return phoneRegex.test(value);
+  };
+
+  // Handle name input with validation
+  const handleNameChange = (e) => {
+    const value = e.target.value;
+    
+    // Allow empty value (for clearing)
+    if (value === '') {
+      setForm({ ...form, full_name: value });
+      return;
+    }
+    
+    // Check if the new character is valid
+    if (!validateNameCharacters(value)) {
+      toast.error('Name can only contain letters, spaces, and hyphens', {
+        id: 'name-validation',
+        duration: 2000
+      });
+      return;
+    }
+    
+    setForm({ ...form, full_name: value });
+  };
+
+  // Handle phone input with validation
+  const handlePhoneChange = (e) => {
+    const value = e.target.value;
+    
+    // Allow empty value (for clearing)
+    if (value === '') {
+      setForm({ ...form, phone: value });
+      return;
+    }
+    
+    // Check if the new character is valid
+    if (!validatePhoneCharacters(value)) {
+      toast.error('Phone number can only contain numbers', {
+        id: 'phone-validation',
+        duration: 2000
+      });
+      return;
+    }
+    
+    setForm({ ...form, phone: value });
+  };
 
   const validateForm = () => {
     const newErrors = {};
@@ -79,6 +137,8 @@ export default function ProfileEdit() {
       newErrors.full_name = 'Full legal name is required';
     } else if (form.full_name.trim().length < 2) {
       newErrors.full_name = 'Name must be at least 2 characters';
+    } else if (!validateNameCharacters(form.full_name)) {
+      newErrors.full_name = 'Name can only contain letters, spaces, and hyphens';
     }
     
     if (!form.date_of_birth) {
@@ -100,6 +160,11 @@ export default function ProfileEdit() {
       newErrors.address = 'Address is required';
     } else if (form.address.trim().length < 10) {
       newErrors.address = 'Please enter a complete address';
+    }
+
+    // Phone is optional but if provided, must be valid
+    if (form.phone && !validatePhoneCharacters(form.phone)) {
+      newErrors.phone = 'Phone number can only contain numbers';
     }
     
     setErrors(newErrors);
@@ -196,11 +261,12 @@ export default function ProfileEdit() {
               </label>
               <Input
                 value={form.full_name}
-                onChange={e => setForm({ ...form, full_name: e.target.value })}
+                onChange={handleNameChange}
                 onBlur={() => handleBlur('full_name')}
-                placeholder="Enter your full legal name"
+                placeholder="Enter your full legal name (letters and hyphens only)"
                 className={`rounded-xl ${touched.full_name && errors.full_name ? 'border-red-500 focus-visible:ring-red-500' : ''}`}
               />
+              <p className="text-xs text-muted-foreground mt-1">Only letters, spaces, and hyphens allowed</p>
               {touched.full_name && errors.full_name && (
                 <p className="text-xs text-red-500 mt-1 flex items-center gap-1">
                   <AlertCircle className="w-3 h-3" /> {errors.full_name}
@@ -282,6 +348,27 @@ export default function ProfileEdit() {
               {touched.address && errors.address && (
                 <p className="text-xs text-red-500 mt-1 flex items-center gap-1">
                   <AlertCircle className="w-3 h-3" /> {errors.address}
+                </p>
+              )}
+            </div>
+
+            {/* Phone Number */}
+            <div>
+              <label className="text-xs font-medium text-muted-foreground mb-1.5 flex items-center gap-1.5">
+                <Phone className="w-3.5 h-3.5" /> 
+                Phone Number
+              </label>
+              <Input
+                value={form.phone}
+                onChange={handlePhoneChange}
+                onBlur={() => handleBlur('phone')}
+                placeholder="Enter your phone number (numbers only)"
+                className={`rounded-xl ${touched.phone && errors.phone ? 'border-red-500 focus-visible:ring-red-500' : ''}`}
+              />
+              <p className="text-xs text-muted-foreground mt-1">Only numbers allowed</p>
+              {touched.phone && errors.phone && (
+                <p className="text-xs text-red-500 mt-1 flex items-center gap-1">
+                  <AlertCircle className="w-3 h-3" /> {errors.phone}
                 </p>
               )}
             </div>
