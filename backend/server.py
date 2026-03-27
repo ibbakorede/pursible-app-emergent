@@ -85,6 +85,7 @@ class UserResponse(BaseModel):
     email: str
     full_name: Optional[str] = None
     kyc_status: Optional[str] = None
+    role: Optional[str] = None
     created_date: str
     
 class TokenResponse(BaseModel):
@@ -289,6 +290,7 @@ async def login(data: UserLogin):
             email=user["email"],
             full_name=user.get("full_name"),
             kyc_status=user.get("kyc_status"),
+            role=user.get("role"),
             created_date=user.get("created_date", get_timestamp())
         )
     )
@@ -318,6 +320,7 @@ async def biometric_login(data: BiometricLoginRequest):
             email=user["email"],
             full_name=user.get("full_name"),
             kyc_status=user.get("kyc_status"),
+            role=user.get("role"),
             created_date=user.get("created_date", get_timestamp())
         )
     )
@@ -330,6 +333,7 @@ async def get_me(user: dict = Depends(get_current_user)):
         email=user["email"],
         full_name=user.get("full_name"),
         kyc_status=user.get("kyc_status"),
+        role=user.get("role"),
         created_date=user.get("created_date", get_timestamp())
     )
 
@@ -1464,6 +1468,53 @@ async def seed_demo_data():
             await db.deposit_accounts.insert_one(account)
     
     return {"success": True, "message": "Demo data seeded (rates + deposit accounts)"}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# ADMIN MANAGEMENT
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@api_router.post("/admin/promote")
+async def promote_to_admin(data: dict, user: dict = Depends(get_current_user)):
+    """Promote a user to admin role (only existing admins can do this, or first user becomes admin)"""
+    target_email = data.get("email")
+    
+    if not target_email:
+        raise HTTPException(status_code=400, detail="Email is required")
+    
+    # Check if any admin exists
+    existing_admin = await db.users.find_one({"role": "admin"})
+    
+    # If no admin exists, allow the current user to become admin
+    if not existing_admin:
+        await db.users.update_one(
+            {"email": user["email"]},
+            {"$set": {"role": "admin"}}
+        )
+        return {"success": True, "message": f"You are now an admin", "email": user["email"]}
+    
+    # Otherwise, only admins can promote others
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Only admins can promote users")
+    
+    # Promote the target user
+    result = await db.users.update_one(
+        {"email": target_email},
+        {"$set": {"role": "admin"}}
+    )
+    
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    return {"success": True, "message": f"User {target_email} is now an admin"}
+
+@api_router.post("/admin/make-me-admin")
+async def make_me_admin(user: dict = Depends(get_current_user)):
+    """Quick endpoint to make the current logged-in user an admin"""
+    await db.users.update_one(
+        {"email": user["email"]},
+        {"$set": {"role": "admin"}}
+    )
+    return {"success": True, "message": "You are now an admin. Refresh the page to see the Admin Dashboard link in your Profile."}
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # HEALTH CHECK
