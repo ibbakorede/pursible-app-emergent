@@ -49,7 +49,7 @@
 
 | Layer | Technology |
 |-------|------------|
-| Frontend | React 18, Tailwind CSS, Shadcn/UI |
+| Frontend | React 18, **Vite 6**, Tailwind CSS, Shadcn/UI |
 | Backend | FastAPI, Python 3.10+ |
 | Database | MongoDB |
 | Auth | JWT, WebAuthn |

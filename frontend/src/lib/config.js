@@ -17,7 +17,7 @@ export const validateEnv = () => {
 };
 
 export const config = {
-  apiUrl: process.env.REACT_APP_BACKEND_URL,
+  apiUrl: import.meta.env.VITE_BACKEND_URL,
   isDevelopment: process.env.NODE_ENV === 'development',
   isProduction: process.env.NODE_ENV === 'production',
 };

@@ -55,7 +55,7 @@ export default function Login() {
     try {
       const result = await authenticateWithBiometric();
       if (result.success && result.email) {
-        const response = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/auth/biometric-login`, {
+        const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/auth/biometric-login`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email: result.email }),

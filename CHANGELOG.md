@@ -85,6 +85,31 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.0.3] - 2026-03-27
+
+### Changed
+- **Migrated from Create React App to Vite**
+  - Switched bundler from Webpack (CRA) to Vite 6
+  - ~10x faster dev server startup
+  - Near-instant hot module replacement (HMR)
+  - Smaller production bundles
+  - Environment variables: `REACT_APP_*` → `VITE_*`
+  - Entry point: `src/index.js` → `src/main.jsx`
+
+### Added
+- **Admin Access Control**
+  - Only users with `role: "admin"` can access admin dashboard
+  - Regular users see "Access Denied" page if trying to access /admin
+  - Backend admin routes protected with `get_admin_user` dependency
+
+- **Profile Required Fields**
+  - Full Legal Name, Date of Birth, Nationality, Address now required (*)
+  - Input validation: Name accepts only letters/hyphens, Phone accepts only numbers
+  - Real-time validation with toast alerts for invalid characters
+  - Save button disabled until all required fields are completed
+
+---
+
 ## [1.0.2] - 2026-03-26
 
 ### Changed
