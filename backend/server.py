@@ -346,7 +346,7 @@ async def get_me(user: dict = Depends(get_current_user)):
 @auth_router.patch("/me")
 async def update_me(data: dict, user: dict = Depends(get_current_user)):
     """Update current user profile"""
-    allowed_fields = ["full_name", "phone", "address"]
+    allowed_fields = ["full_name", "phone", "address", "date_of_birth", "nationality"]
     update_data = {k: v for k, v in data.items() if k in allowed_fields}
     
     if update_data:
