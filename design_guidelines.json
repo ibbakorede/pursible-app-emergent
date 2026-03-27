@@ -1,0 +1,111 @@
+{
+  "theme": "dark",
+  "archetype": "5 (Jewel & Luxury) + 2 (Performance Pro)",
+  "brand": {
+    "name": "Paysible",
+    "primary_color": "#5C6B3E",
+    "primary_color_light": "#7A8C54",
+    "primary_color_glow": "rgba(92, 107, 62, 0.4)",
+    "emerald_glow": "rgba(16, 185, 129, 0.2)"
+  },
+  "colors": {
+    "background": {
+      "base": "bg-[#0A0A0A]",
+      "gradient": "bg-gradient-to-br from-[#0a0a0a] to-[#1a1a1a]"
+    },
+    "surface": {
+      "glass": "bg-white/[0.03] backdrop-blur-xl border border-white/10",
+      "glass_hover": "hover:bg-white/[0.05] hover:border-white/20 transition-all duration-300",
+      "glass_active": "active:bg-white/[0.02] active:border-white/30"
+    },
+    "text": {
+      "primary": "text-white",
+      "secondary": "text-neutral-400",
+      "tertiary": "text-neutral-500",
+      "accent": "text-[#7A8C54]",
+      "error": "text-red-400"
+    }
+  },
+  "typography": {
+    "fonts": {
+      "headings": "Outfit, sans-serif",
+      "body": "Manrope, sans-serif",
+      "mono": "JetBrains Mono, monospace"
+    },
+    "styles": {
+      "h1": "text-4xl sm:text-5xl font-medium tracking-tight text-white",
+      "h2": "text-2xl sm:text-3xl font-medium tracking-tight text-white",
+      "h3": "text-xl sm:text-2xl font-medium tracking-tight text-white",
+      "body": "text-base text-neutral-400 leading-relaxed",
+      "label": "text-xs font-bold uppercase tracking-[0.2em] text-neutral-500",
+      "balance": "text-5xl sm:text-6xl font-medium tracking-tighter text-white drop-shadow-[0_0_15px_rgba(92,107,62,0.3)]"
+    }
+  },
+  "layout": {
+    "container": "max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12",
+    "grid": {
+      "dashboard_bento": "grid grid-cols-1 md:grid-cols-12 gap-6",
+      "spans": {
+        "hero_balance": "col-span-1 md:col-span-8 row-span-2",
+        "quick_actions": "col-span-1 md:col-span-4",
+        "wallet_card": "col-span-1 md:col-span-4 lg:col-span-3",
+        "transactions": "col-span-1 md:col-span-full"
+      }
+    },
+    "spacing": {
+      "section_gap": "gap-12",
+      "card_padding": "p-6 sm:p-8"
+    }
+  },
+  "components": {
+    "card": "Rounded-2xl or Rounded-3xl, bg-white/[0.03] backdrop-blur-xl border border-white/10 shadow-lg relative overflow-hidden",
+    "button": {
+      "primary": "bg-[#5C6B3E] hover:bg-[#7A8C54] text-white font-medium py-3 px-6 rounded-xl transition-all duration-300 shadow-[0_0_20px_rgba(92,107,62,0.3)] hover:shadow-[0_0_30px_rgba(92,107,62,0.5)]",
+      "secondary": "bg-white/5 hover:bg-white/10 text-white font-medium py-3 px-6 rounded-xl border border-white/10 transition-all duration-300",
+      "ghost": "bg-transparent hover:bg-white/5 text-neutral-300 py-2 px-4 rounded-xl transition-all duration-200"
+    },
+    "input": "bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#5C6B3E] focus:ring-1 focus:ring-[#5C6B3E] transition-all duration-300 placeholder:text-neutral-600",
+    "feature_badge": "inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#5C6B3E]/10 border border-[#5C6B3E]/30 text-[#7A8C54] text-xs font-medium uppercase tracking-wider",
+    "glow_effect": "absolute rounded-full blur-[100px] opacity-30 pointer-events-none"
+  },
+  "motion": {
+    "hover": "transform transition-all duration-300 hover:-translate-y-1",
+    "entrance": "animate-in fade-in slide-in-from-bottom-4 duration-700 ease-out"
+  },
+  "icons": {
+    "library": "@phosphor-icons/react",
+    "style": "Duotone or Regular, matching the sleek and professional fintech vibe."
+  },
+  "pages": {
+    "dashboard": {
+      "structure": [
+        "Header: Greeting + Profile Avatar + Notification Bell",
+        "Hero Section: Total Balance (Bento Grid 8-cols) with dynamic glowing background.",
+        "Quick Actions: Deposit, Withdraw, Swap (Bento Grid 4-cols).",
+        "Currency Wallets: Horizontal scroll or Grid of compact cards for USD, USDC, USDT, NGN.",
+        "Quick Converter Widget: Minimalist inputs with swap icon in the middle.",
+        "Recent Transactions: Clean list, with distinct icons for In/Out, amounts aligned right."
+      ]
+    },
+    "wallet": {
+      "structure": [
+        "Header: Page Title + Global Actions",
+        "Hero Card: Net Worth with large typography and trend indicator (green/red).",
+        "Individual Wallet Cards: Detailed cards for USD, USDC, USDT, NGN showing balance, account details, and quick actions per currency.",
+        "Currency Converter: More prominent widget for executing swaps.",
+        "Transaction History: Filterable list specific to the selected wallet."
+      ]
+    }
+  },
+  "test_attributes": {
+    "rules": "All interactive elements must include data-testid. Examples: data-testid='deposit-button', data-testid='total-balance', data-testid='currency-selector'."
+  },
+  "instructions_to_main_agent": [
+    "Do not implement the UI yet. This file is the proposed design style.",
+    "Present this design proposal to the user and wait for their approval before proceeding with the code changes.",
+    "When approved, apply the exact color variables and glass-morphism utility classes defined here.",
+    "Use Phosphor icons for a premium feel.",
+    "Ensure the glowing effects are implemented using background gradients with heavy blur (e.g., bg-[#5C6B3E]/20 blur-[100px]).",
+    "Maintain the user's specific dark gradient background: bg-gradient-to-br from-[#0a0a0a] to-[#1a1a1a]."
+  ]
+}
