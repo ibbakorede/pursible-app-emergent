@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
@@ -7,6 +7,7 @@ import {
   User, Building2, Shield, Bell, Lock, HelpCircle, FileText,
   ChevronRight, LogOut, Settings, TrendingUp, CheckCircle, AlertCircle, Clock, Target, Gift, Sun, Moon
 } from 'lucide-react';
+import SecurityScore from '@/components/profile/SecurityScore';
 
 const KYC_STATUS_CONFIG = {
   approved:    { label: 'Verified',     bg: 'bg-emerald-100', text: 'text-emerald-700', icon: CheckCircle },
@@ -19,11 +20,27 @@ const KYC_STATUS_CONFIG = {
 export default function Profile() {
   const [user, setUser] = useState(null);
   const { theme, toggleTheme, isDark } = useTheme();
-  useEffect(() => { base44.auth.me().then(setUser); }, []);
+  
+  const fetchUser = useCallback(async () => {
+    try {
+      const userData = await base44.auth.me();
+      setUser(userData);
+    } catch {
+      setUser(null);
+    }
+  }, []);
+
+  useEffect(() => { fetchUser(); }, [fetchUser]);
 
   const { data: kyc = [] } = useQuery({
     queryKey: ['kyc'],
     queryFn: () => base44.entities.KYCRecord.filter({ user_email: user?.email }),
+    enabled: !!user?.email,
+  });
+
+  const { data: bankAccounts = [] } = useQuery({
+    queryKey: ['bank-accounts', user?.email],
+    queryFn: () => base44.entities.BankAccount.filter({ user_email: user?.email }),
     enabled: !!user?.email,
   });
 
@@ -95,6 +112,13 @@ export default function Profile() {
           <ChevronRight className="w-4 h-4 text-amber-600" />
         </Link>
       )}
+
+      {/* Security Score */}
+      <SecurityScore 
+        user={user} 
+        kycStatus={kycStatus} 
+        bankAccounts={bankAccounts} 
+      />
 
       {/* Sections */}
       {sections.map(section => (

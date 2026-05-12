@@ -241,6 +241,12 @@
   - Added token expiration handling (7 days)
   - Legacy localStorage token migration for backwards compatibility
   - Biometric credentials include 90-day expiration
+- **New Feature: Security Score Indicator**
+  - Added visual security score on Profile page (0-100 scale)
+  - Tracks 5 security factors: KYC, Biometric, Email, Password, Bank
+  - Color-coded progress bar (Excellent/Good/Fair/Needs Attention)
+  - Clickable incomplete factors link to relevant setup pages
+  - Contextual tips to improve security score
 - **Test Coverage:** 24/24 backend tests passing
 
 ### March 26, 2026 (v1.0.1)
