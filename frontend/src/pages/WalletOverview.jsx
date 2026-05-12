@@ -26,7 +26,7 @@ export default function WalletOverview() {
     queryClient.invalidateQueries({ queryKey: ['wallets', 'conversion-rates'] });
   });
 
-  useEffect(() => { base44.auth.me().then(setUser); }, []);
+  useEffect(() => { base44.auth.me().then(setUser).catch(() => setUser(null)); }, []);
 
   const { data: wallets = [], isLoading, refetch: refetchWallets } = useQuery({
     queryKey: ['wallets'],
@@ -80,8 +80,10 @@ export default function WalletOverview() {
     refetchInterval: 60000,
   });
   useEffect(() => {
-    if (balanceSync?.success) queryClient.invalidateQueries({ queryKey: ['wallets'] });
-  }, [balanceSync, queryClient]);
+    if (balanceSync?.success) {
+      queryClient.invalidateQueries({ queryKey: ['wallets'] });
+    }
+  }, [balanceSync?.success, queryClient]);
 
   const handleRefresh = () => { refetchBalance(); refetchWallets(); refetchRates(); };
 
@@ -91,7 +93,7 @@ export default function WalletOverview() {
       announceBalance(primaryCurrency, totalInPrimary.toFixed(2), totalInPrimary - prevTotalInPrimary);
     }
     setPrevTotalInPrimary(totalInPrimary);
-  }, [totalInPrimary, primaryCurrency, announceBalance]);
+  }, [totalInPrimary, primaryCurrency, announceBalance, prevTotalInPrimary]);
 
   const lastUpdated = useMemo(() => {
     if (rates.length === 0) return null;

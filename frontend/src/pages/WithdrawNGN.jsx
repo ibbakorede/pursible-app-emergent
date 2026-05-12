@@ -69,7 +69,7 @@ export default function WithdrawNGN() {
       const def = bankAccounts.find(b => b.is_default) || bankAccounts[0];
       setSelectedBankId(def.id);
     }
-  }, [bankAccounts, selectedBankId]);
+  }, [bankAccounts, selectedBankId, setSelectedBankId]);
 
   const withdraw = useMutation({
     mutationFn: async () => {
@@ -457,24 +457,31 @@ export default function WithdrawNGN() {
               <p className="text-sm font-semibold">Recent Withdrawals</p>
             </div>
             <div className="divide-y divide-border">
-              {recentTxns.slice(0, 3).map(tx => (
-                <div key={tx.id} className="px-5 py-3.5 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-xl bg-purple-50 flex items-center justify-center">
-                      <ArrowDownToLine className="w-4 h-4 text-purple-600" />
+              {recentTxns.slice(0, 3).map(tx => {
+                const statusStyles = {
+                  completed: 'bg-emerald-50 text-emerald-700',
+                  processing: 'bg-blue-50 text-blue-700',
+                  failed: 'bg-red-50 text-red-700',
+                };
+                const statusClass = statusStyles[tx.status] || 'bg-muted text-muted-foreground';
+                
+                return (
+                  <div key={tx.id} className="px-5 py-3.5 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-xl bg-purple-50 flex items-center justify-center">
+                        <ArrowDownToLine className="w-4 h-4 text-purple-600" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium">{formatCurrency(tx.from_amount, 'NGN')}</p>
+                        <p className="text-xs text-muted-foreground">{new Date(tx.created_date).toLocaleDateString()}</p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-sm font-medium">{formatCurrency(tx.from_amount, 'NGN')}</p>
-                      <p className="text-xs text-muted-foreground">{new Date(tx.created_date).toLocaleDateString()}</p>
-                    </div>
+                    <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${statusClass}`}>
+                      {tx.status}
+                    </span>
                   </div>
-                  <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${
-                    tx.status === 'completed' ? 'bg-emerald-50 text-emerald-700' :
-                    tx.status === 'processing' ? 'bg-blue-50 text-blue-700' :
-                    tx.status === 'failed' ? 'bg-red-50 text-red-700' : 'bg-muted text-muted-foreground'
-                  }`}>{tx.status}</span>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}

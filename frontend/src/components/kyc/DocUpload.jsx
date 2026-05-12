@@ -100,127 +100,110 @@ export default function DocUpload({
   // Generate a simple blur hash placeholder (blurred background color)
   const blurPlaceholderColor = 'rgba(100, 116, 139, 0.1)';
 
+  // Render different states as separate functions for clarity
+  const renderUploadedState = () => (
+    <div className="flex items-center gap-3 p-4 bg-emerald-50 border-2 border-emerald-200 rounded-2xl">
+      <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center text-emerald-600 flex-shrink-0">
+        <CheckCircle className="w-5 h-5" />
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-semibold text-emerald-700">
+          {fileInfo ? fileInfo.name : 'Document uploaded'}
+        </p>
+        <div className="flex items-center gap-2 mt-0.5">
+          {fileInfo && (
+            <span className="text-xs text-emerald-600">{formatBytes(fileInfo.size)}</span>
+          )}
+          <span className="text-xs text-emerald-600">· Securely stored</span>
+        </div>
+      </div>
+      <div className="flex items-center gap-1">
+        {value && (
+          <a
+            href={value}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="p-2 rounded-lg hover:bg-emerald-100 text-emerald-600 transition-colors"
+            title="Preview document"
+          >
+            <Eye className="w-4 h-4" />
+          </a>
+        )}
+        {!disabled && (
+          <button
+            onClick={handleRemove}
+            className="p-2 rounded-lg hover:bg-emerald-100 text-emerald-600 hover:text-red-500 transition-colors"
+            title="Remove document"
+          >
+            <Trash2 className="w-4 h-4" />
+          </button>
+        )}
+      </div>
+    </div>
+  );
+
+  const renderUploadingState = () => (
+    <div className="p-5 border-2 border-primary/30 bg-primary/5 rounded-2xl space-y-3">
+      <div className="flex items-center gap-3">
+        <Loader2 className="w-5 h-5 text-primary animate-spin flex-shrink-0" />
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium truncate">{fileInfo?.name}</p>
+          <p className="text-xs text-muted-foreground">{formatBytes(fileInfo?.size || 0)}</p>
+        </div>
+        <span className="text-sm font-semibold text-primary">{progress}%</span>
+      </div>
+      <div className="w-full bg-primary/10 rounded-full h-1.5 overflow-hidden">
+        <div
+          className="bg-primary h-full rounded-full transition-all duration-300"
+          style={{ width: `${progress}%` }}
+        />
+      </div>
+      <p className="text-xs text-muted-foreground text-center">Uploading securely...</p>
+    </div>
+  );
+
+  const renderErrorState = () => (
+    <div className="space-y-2">
+      <div className="flex items-center gap-3 p-4 bg-red-50 border-2 border-red-200 rounded-2xl">
+        <XCircle className="w-5 h-5 text-red-500 flex-shrink-0" />
+        <p className="text-sm text-red-600 flex-1">{errorMsg}</p>
+      </div>
+      <label className={`flex flex-col items-center justify-center gap-2 p-5 border-2 border-dashed border-border rounded-2xl cursor-pointer hover:bg-muted/50 transition-colors ${disabled ? 'opacity-50 pointer-events-none' : ''}`}>
+        <Upload className="w-5 h-5 text-muted-foreground" />
+        <span className="text-sm text-muted-foreground">Try again</span>
+        <input ref={inputRef} type="file" accept={accept} capture={capture} className="hidden" onChange={handleChange} disabled={disabled} />
+      </label>
+    </div>
+  );
+
+  const renderIdleState = () => (
+    <label className={`flex flex-col items-center justify-center gap-3 p-6 border-2 border-dashed border-border rounded-2xl cursor-pointer hover:bg-muted/50 hover:border-primary/30 transition-all group ${disabled ? 'opacity-50 pointer-events-none' : ''}`}>
+      <div className="w-12 h-12 rounded-xl bg-muted group-hover:bg-primary/10 flex items-center justify-center transition-colors">
+        {Icon ? <Icon className="w-6 h-6 text-muted-foreground group-hover:text-primary transition-colors" /> : <Upload className="w-6 h-6 text-muted-foreground group-hover:text-primary transition-colors" />}
+      </div>
+      <div className="text-center">
+        <p className="text-sm font-medium">Tap to upload</p>
+        {hint && <p className="text-xs text-muted-foreground mt-0.5">{hint}</p>}
+        <p className="text-xs text-muted-foreground mt-1">JPG, PNG, PDF · Max {MAX_FILE_SIZE_MB}MB</p>
+      </div>
+      <input ref={inputRef} type="file" accept={accept} capture={capture} className="hidden" onChange={handleChange} disabled={disabled} />
+    </label>
+  );
+
+  // Determine which state to render
+  const renderContent = () => {
+    if (isUploaded) return renderUploadedState();
+    if (status === 'uploading') return renderUploadingState();
+    if (status === 'error') return renderErrorState();
+    return renderIdleState();
+  };
+
   return (
     <div className="space-y-2">
       {label && (
         <label className="text-xs font-medium text-muted-foreground block">{label}</label>
       )}
-
-      {isUploaded ? (
-        // Uploaded state
-        <div className="flex items-center gap-3 p-4 bg-emerald-50 border-2 border-emerald-200 rounded-2xl">
-          <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center text-emerald-600 flex-shrink-0">
-            <CheckCircle className="w-5 h-5" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-emerald-700">
-              {fileInfo ? fileInfo.name : 'Document uploaded'}
-            </p>
-            <div className="flex items-center gap-2 mt-0.5">
-              {fileInfo && (
-                <span className="text-xs text-emerald-600">{formatBytes(fileInfo.size)}</span>
-              )}
-              <span className="text-xs text-emerald-600">· Securely stored</span>
-            </div>
-          </div>
-          <div className="flex items-center gap-1">
-            {value && (
-              <a
-                href={value}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="p-2 rounded-lg hover:bg-emerald-100 text-emerald-600 transition-colors"
-                title="Preview document"
-              >
-                <Eye className="w-4 h-4" />
-              </a>
-            )}
-            {!disabled && (
-              <button
-                onClick={handleRemove}
-                className="p-2 rounded-lg hover:bg-emerald-100 text-emerald-600 hover:text-red-500 transition-colors"
-                title="Remove document"
-              >
-                <Trash2 className="w-4 h-4" />
-              </button>
-            )}
-          </div>
-        </div>
-      ) : status === 'uploading' ? (
-        // Uploading state
-        <div className="p-5 border-2 border-primary/30 bg-primary/5 rounded-2xl space-y-3">
-          <div className="flex items-center gap-3">
-            <Loader2 className="w-5 h-5 text-primary animate-spin flex-shrink-0" />
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium truncate">{fileInfo?.name}</p>
-              <p className="text-xs text-muted-foreground">{formatBytes(fileInfo?.size || 0)}</p>
-            </div>
-            <span className="text-sm font-semibold text-primary">{progress}%</span>
-          </div>
-          <div className="w-full bg-primary/10 rounded-full h-1.5 overflow-hidden">
-            <div
-              className="bg-primary h-full rounded-full transition-all duration-300"
-              style={{ width: `${progress}%` }}
-            />
-          </div>
-          <p className="text-xs text-muted-foreground text-center">Uploading securely...</p>
-        </div>
-      ) : status === 'uploading' ? (
-        // Uploading state with blurred placeholder
-        <div className="p-5 border-2 border-primary/30 bg-primary/5 rounded-2xl space-y-3">
-          <div className="relative w-full h-40 bg-slate-200 rounded-xl overflow-hidden mb-3">
-            {/* Blurred placeholder background */}
-            <div
-              className="absolute inset-0 blur-lg"
-              style={{ backgroundColor: blurPlaceholderColor }}
-            />
-            <div className="absolute inset-0 flex items-center justify-center">
-              <Loader2 className="w-8 h-8 text-primary animate-spin" />
-            </div>
-          </div>
-          <div className="flex items-center gap-3">
-            <Loader2 className="w-5 h-5 text-primary animate-spin flex-shrink-0" />
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium truncate">{fileInfo?.name}</p>
-              <p className="text-xs text-muted-foreground">{formatBytes(fileInfo?.size || 0)}</p>
-            </div>
-            <span className="text-sm font-semibold text-primary">{progress}%</span>
-          </div>
-          <div className="w-full bg-primary/10 rounded-full h-1.5 overflow-hidden">
-            <div
-              className="bg-primary h-full rounded-full transition-all duration-300"
-              style={{ width: `${progress}%` }}
-            />
-          </div>
-          <p className="text-xs text-muted-foreground text-center">Uploading securely...</p>
-        </div>
-      ) : status === 'error' ? (
-        // Error state
-        <div className="space-y-2">
-          <div className="flex items-center gap-3 p-4 bg-red-50 border-2 border-red-200 rounded-2xl">
-            <XCircle className="w-5 h-5 text-red-500 flex-shrink-0" />
-            <p className="text-sm text-red-600 flex-1">{errorMsg}</p>
-          </div>
-          <label className={`flex flex-col items-center justify-center gap-2 p-5 border-2 border-dashed border-border rounded-2xl cursor-pointer hover:bg-muted/50 transition-colors ${disabled ? 'opacity-50 pointer-events-none' : ''}`}>
-            <Upload className="w-5 h-5 text-muted-foreground" />
-            <span className="text-sm text-muted-foreground">Try again</span>
-            <input ref={inputRef} type="file" accept={accept} capture={capture} className="hidden" onChange={handleChange} disabled={disabled} />
-          </label>
-        </div>
-      ) : (
-        // Idle / default upload zone
-        <label className={`flex flex-col items-center justify-center gap-3 p-6 border-2 border-dashed border-border rounded-2xl cursor-pointer hover:bg-muted/50 hover:border-primary/30 transition-all group ${disabled ? 'opacity-50 pointer-events-none' : ''}`}>
-          <div className="w-12 h-12 rounded-xl bg-muted group-hover:bg-primary/10 flex items-center justify-center transition-colors">
-            {Icon ? <Icon className="w-6 h-6 text-muted-foreground group-hover:text-primary transition-colors" /> : <Upload className="w-6 h-6 text-muted-foreground group-hover:text-primary transition-colors" />}
-          </div>
-          <div className="text-center">
-            <p className="text-sm font-medium">Tap to upload</p>
-            {hint && <p className="text-xs text-muted-foreground mt-0.5">{hint}</p>}
-            <p className="text-xs text-muted-foreground mt-1">JPG, PNG, PDF · Max {MAX_FILE_SIZE_MB}MB</p>
-          </div>
-          <input ref={inputRef} type="file" accept={accept} capture={capture} className="hidden" onChange={handleChange} disabled={disabled} />
-        </label>
-      )}
+      {renderContent()}
     </div>
   );
 }

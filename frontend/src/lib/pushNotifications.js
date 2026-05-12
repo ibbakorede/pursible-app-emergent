@@ -1,11 +1,13 @@
 /**
  * Push Notification Service
  * Supports both Web Push and prepares for FCM (mobile)
+ * Note: Notification settings are non-sensitive user preferences stored in localStorage
+ * FCM tokens are device identifiers and are safe in localStorage
  */
 
-const NOTIFICATION_PERMISSION_KEY = 'paysible_notification_permission';
-const NOTIFICATION_SETTINGS_KEY = 'paysible_notification_settings';
-const FCM_TOKEN_KEY = 'paysible_fcm_token';
+const NOTIFICATION_PERMISSION_KEY = 'pursible_notification_permission';
+const NOTIFICATION_SETTINGS_KEY = 'pursible_notification_settings';
+const FCM_TOKEN_KEY = 'pursible_fcm_token';
 
 // Default notification settings
 const defaultSettings = {
@@ -93,10 +95,10 @@ export const showNotification = async (title, options = {}) => {
   }
 
   const defaultOptions = {
-    icon: '/paysible_icon_white.svg',
-    badge: '/paysible_icon_white.svg',
+    icon: '/pursible_icon_white.svg',
+    badge: '/pursible_icon_white.svg',
     vibrate: [200, 100, 200],
-    tag: options.tag || 'paysible-notification',
+    tag: options.tag || 'pursible-notification',
     renotify: true,
     requireInteraction: false,
     ...options,
@@ -163,9 +165,9 @@ export const getFCMToken = () => {
 
 // Check if user has seen the notification prompt
 export const hasSeenNotificationPrompt = () => {
-  return localStorage.getItem('paysible_notification_prompt_seen') === 'true';
+  return localStorage.getItem('pursible_notification_prompt_seen') === 'true';
 };
 
 export const markNotificationPromptSeen = () => {
-  localStorage.setItem('paysible_notification_prompt_seen', 'true');
+  localStorage.setItem('pursible_notification_prompt_seen', 'true');
 };

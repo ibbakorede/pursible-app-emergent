@@ -131,19 +131,24 @@ class BankVerifyRequest(BaseModel):
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def generate_id() -> str:
+    """Generate a unique UUID string."""
     return str(uuid.uuid4())
 
 def get_timestamp() -> str:
+    """Get current UTC timestamp in ISO format."""
     return datetime.now(timezone.utc).isoformat()
 
 def hash_password(password: str) -> str:
+    """Hash a password using bcrypt."""
     return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
 
 def verify_password(password: str, hashed: str) -> bool:
+    """Verify a password against its hash."""
     return bcrypt.checkpw(password.encode(), hashed.encode())
 
 def create_jwt_token(user_id: str, email: str) -> str:
-    payload = {
+    """Create a JWT token for a user."""
+    payload: Dict[str, Any] = {
         'sub': user_id,
         'email': email,
         'exp': datetime.now(timezone.utc) + timedelta(hours=JWT_EXPIRATION_HOURS),
@@ -151,7 +156,8 @@ def create_jwt_token(user_id: str, email: str) -> str:
     }
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
-def decode_jwt_token(token: str) -> Dict:
+def decode_jwt_token(token: str) -> Dict[str, Any]:
+    """Decode and validate a JWT token."""
     try:
         return jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
     except jwt.ExpiredSignatureError:
@@ -159,7 +165,8 @@ def decode_jwt_token(token: str) -> Dict:
     except jwt.InvalidTokenError:
         raise HTTPException(status_code=401, detail="Invalid token")
 
-async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
+async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)) -> Dict[str, Any]:
+    """Get the current authenticated user from JWT token."""
     if not credentials:
         raise HTTPException(status_code=401, detail="Not authenticated")
     
@@ -169,7 +176,8 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
         raise HTTPException(status_code=401, detail="User not found")
     return user
 
-async def get_optional_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
+async def get_optional_user(credentials: HTTPAuthorizationCredentials = Depends(security)) -> Optional[Dict[str, Any]]:
+    """Get the current user if authenticated, otherwise return None."""
     if not credentials:
         return None
     try:
@@ -179,14 +187,19 @@ async def get_optional_user(credentials: HTTPAuthorizationCredentials = Depends(
     except Exception:
         return None
 
-async def get_admin_user(user: dict = Depends(get_current_user)):
-    """Dependency to ensure the user is an admin"""
+async def get_admin_user(user: Dict[str, Any] = Depends(get_current_user)) -> Dict[str, Any]:
+    """Dependency to ensure the user is an admin."""
     if not user or user.get("role") != "admin":
         raise HTTPException(status_code=403, detail="Admin access required")
     return user
 
-async def log_error(function_name: str, error_message: str, user_email: str = None, provider: str = None):
-    """Log errors to AppError collection"""
+async def log_error(
+    function_name: str, 
+    error_message: str, 
+    user_email: Optional[str] = None, 
+    provider: Optional[str] = None
+) -> None:
+    """Log errors to AppError collection."""
     try:
         await db.app_errors.insert_one({
             "id": generate_id(),
@@ -370,7 +383,7 @@ async def update_me(data: dict, user: dict = Depends(get_current_user)):
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def get_collection_name(entity_name: str) -> str:
-    """Map entity names to collection names"""
+    """Map entity names to collection names."""
     return entity_name.lower().replace("-", "_")
 
 @entities_router.get("/{entity_name}")

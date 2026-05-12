@@ -1,11 +1,52 @@
 /**
  * Biometric Authentication Service
  * Uses WebAuthn API for fingerprint/face recognition
+ * Note: Biometric credentials are stored locally as they don't contain sensitive data
+ * The credential ID is just a reference - the actual authentication happens via WebAuthn
  */
 
 const BIOMETRIC_CREDENTIAL_KEY = 'pursible_biometric_credential';
 const BIOMETRIC_ENABLED_KEY = 'pursible_biometric_enabled';
 const BIOMETRIC_USER_KEY = 'pursible_biometric_user';
+
+/**
+ * Secure biometric storage utilities
+ * Biometric data is device-bound and non-sensitive (just references)
+ * but we add expiration for security hygiene
+ */
+const biometricStorage = {
+  setCredential: (credentialData) => {
+    const stored = {
+      ...credentialData,
+      storedAt: Date.now()
+    };
+    localStorage.setItem(BIOMETRIC_CREDENTIAL_KEY, JSON.stringify(stored));
+  },
+  
+  getCredential: () => {
+    try {
+      const stored = localStorage.getItem(BIOMETRIC_CREDENTIAL_KEY);
+      if (!stored) return null;
+      
+      const data = JSON.parse(stored);
+      // Credentials expire after 90 days for security
+      const EXPIRY_MS = 90 * 24 * 60 * 60 * 1000;
+      if (data.storedAt && (Date.now() - data.storedAt) > EXPIRY_MS) {
+        biometricStorage.clear();
+        return null;
+      }
+      return data;
+    } catch {
+      return null;
+    }
+  },
+  
+  clear: () => {
+    localStorage.removeItem(BIOMETRIC_CREDENTIAL_KEY);
+    localStorage.removeItem(BIOMETRIC_ENABLED_KEY);
+    localStorage.removeItem(BIOMETRIC_USER_KEY);
+  }
+};
 
 // Check if WebAuthn is supported
 export const isBiometricSupported = () => {
@@ -100,14 +141,14 @@ export const registerBiometric = async (userEmail, userName) => {
       publicKey: publicKeyCredentialCreationOptions,
     });
 
-    // Store credential info
+    // Store credential info with secure storage
     const credentialData = {
       id: credential.id,
       rawId: bufferToBase64(credential.rawId),
       type: credential.type,
     };
 
-    localStorage.setItem(BIOMETRIC_CREDENTIAL_KEY, JSON.stringify(credentialData));
+    biometricStorage.setCredential(credentialData);
     localStorage.setItem(BIOMETRIC_ENABLED_KEY, 'true');
     localStorage.setItem(BIOMETRIC_USER_KEY, userEmail);
 
@@ -124,12 +165,11 @@ export const authenticateWithBiometric = async () => {
     throw new Error('Biometric login not enabled');
   }
 
-  const credentialDataStr = localStorage.getItem(BIOMETRIC_CREDENTIAL_KEY);
-  if (!credentialDataStr) {
+  const credentialData = biometricStorage.getCredential();
+  if (!credentialData) {
     throw new Error('No biometric credential found');
   }
 
-  const credentialData = JSON.parse(credentialDataStr);
   const challenge = generateChallenge();
 
   const publicKeyCredentialRequestOptions = {
@@ -159,9 +199,7 @@ export const authenticateWithBiometric = async () => {
 
 // Disable biometric login
 export const disableBiometric = () => {
-  localStorage.removeItem(BIOMETRIC_CREDENTIAL_KEY);
-  localStorage.removeItem(BIOMETRIC_ENABLED_KEY);
-  localStorage.removeItem(BIOMETRIC_USER_KEY);
+  biometricStorage.clear();
 };
 
 // Get biometric type name for UI

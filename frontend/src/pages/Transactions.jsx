@@ -116,10 +116,10 @@ function TransactionsPage() {
     queryClient.invalidateQueries({ queryKey: ['transactions'] });
   });
 
-  useEffect(() => { base44.auth.me().then(setUser); }, []);
+  useEffect(() => { base44.auth.me().then(setUser).catch(() => setUser(null)); }, []);
 
   // Reset to first page when filters change
-  useEffect(() => { setPage(0); }, [typeFilter, statusFilter, directionFilter, search]);
+  useEffect(() => { setPage(0); }, [typeFilter, statusFilter, directionFilter, search, setPage]);
 
   // Build server-side filter object
   const buildFilter = () => {
@@ -173,7 +173,7 @@ function TransactionsPage() {
     if (!isLoading) {
       announceNotification(`Page ${page + 1}, showing ${filtered.length} transaction${filtered.length !== 1 ? 's' : ''}`);
     }
-  }, [page, filtered.length, isLoading]);
+  }, [page, filtered.length, isLoading, announceNotification]);
 
   if (isLoading && page === 0) return <TransactionsPageSkeleton />;
 

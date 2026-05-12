@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
@@ -13,6 +13,7 @@ import EmptyState from '@/components/shared/EmptyState';
 export default function RateAlerts() {
   const [showCreate, setShowCreate] = useState(false);
   const queryClient = useQueryClient();
+  const checkAlertsRef = useRef(null);
 
   // ── Auth — same pattern as BankAccounts.jsx (proven working) ──────────────
   const { data: user } = useQuery({
@@ -105,11 +106,22 @@ export default function RateAlerts() {
     }
   }, [alerts, rates, user, queryClient]);
 
+  // Store the latest checkAlerts in ref to avoid stale closure in interval
   useEffect(() => {
-    checkAlerts();
-    const interval = setInterval(checkAlerts, 60_000);
-    return () => clearInterval(interval);
+    checkAlertsRef.current = checkAlerts;
   }, [checkAlerts]);
+
+  useEffect(() => {
+    // Initial check
+    checkAlertsRef.current?.();
+    
+    // Interval check
+    const interval = setInterval(() => {
+      checkAlertsRef.current?.();
+    }, 60_000);
+    
+    return () => clearInterval(interval);
+  }, []);
 
   // ── Loading guard ─────────────────────────────────────────────────────────
   if (!user || isLoading) return <LoadingSpinner />;
