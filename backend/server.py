@@ -26,7 +26,14 @@ load_dotenv(ROOT_DIR / '.env')
 
 # MongoDB connection - supports both MONGODB_URL (Atlas) and MONGO_URL (local)
 mongo_url = os.environ.get('MONGODB_URL') or os.environ.get('MONGO_URL', 'mongodb://localhost:27017')
-client = AsyncIOMotorClient(mongo_url)
+
+# For MongoDB Atlas (SRV connections), use certifi for SSL
+if 'mongodb+srv' in mongo_url or 'mongodb.net' in mongo_url:
+    import certifi
+    client = AsyncIOMotorClient(mongo_url, tlsCAFile=certifi.where())
+else:
+    client = AsyncIOMotorClient(mongo_url)
+
 db = client[os.environ.get('DB_NAME', 'pursible')]
 
 # JWT Settings
