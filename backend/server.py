@@ -24,10 +24,10 @@ import httpx
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
-# MongoDB connection
-mongo_url = os.environ['MONGO_URL']
+# MongoDB connection - supports both MONGODB_URL (Atlas) and MONGO_URL (local)
+mongo_url = os.environ.get('MONGODB_URL') or os.environ.get('MONGO_URL', 'mongodb://localhost:27017')
 client = AsyncIOMotorClient(mongo_url)
-db = client[os.environ['DB_NAME']]
+db = client[os.environ.get('DB_NAME', 'pursible')]
 
 # JWT Settings
 JWT_SECRET = os.environ.get('JWT_SECRET', 'pursible-secret-key-change-in-production')
