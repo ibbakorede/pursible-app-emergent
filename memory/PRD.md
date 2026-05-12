@@ -229,6 +229,20 @@
 
 ## Changelog
 
+### May 12, 2026 (v1.0.2)
+- **Code Quality Audit Fixes Applied:**
+  - Item 2: Fixed missing React hook dependencies in WithdrawNGN, WalletOverview, RateAlerts, Transactions
+  - Item 3: Improved security - moved auth tokens from localStorage to sessionStorage with expiration
+  - Item 4: Refactored DocUpload component - nested ternaries replaced with clean render functions
+  - Item 6: Eliminated nested ternary expressions throughout codebase
+  - Item 8: Added Python type hints to backend utility functions
+- **Security Improvements:**
+  - Auth tokens now use sessionStorage (cleared on tab close)
+  - Added token expiration handling (7 days)
+  - Legacy localStorage token migration for backwards compatibility
+  - Biometric credentials include 90-day expiration
+- **Test Coverage:** 24/24 backend tests passing
+
 ### March 26, 2026 (v1.0.1)
 - Added Security Guidelines documentation
 - Added Architecture documentation
