@@ -22,6 +22,7 @@ export const initHaptics = async () => {
     // Capacitor handles this transparently
     return true;
   } catch (error) {
+    console.debug('Haptics init unavailable:', error.message);
     return false;
   }
 };
@@ -36,7 +37,8 @@ export const triggerHaptic = async (style = 'light') => {
     };
     await Haptics.impact({ style: styleMap[style] || ImpactStyle.Light });
   } catch (error) {
-    // Silently fail on web/non-capacitor environments
+    // Expected on web/non-capacitor environments
+    console.debug('Haptic feedback unavailable:', error.message);
   }
 };
 
@@ -45,7 +47,7 @@ export const triggerSelection = async () => {
   try {
     await Haptics.selectionStart();
   } catch (error) {
-    // Silently fail
+    console.debug('Selection haptic unavailable:', error.message);
   }
 };
 
@@ -59,7 +61,7 @@ export const triggerNotification = async (type = 'success') => {
     };
     await Haptics.notification({ type: typeMap[type] || 'Success' });
   } catch (error) {
-    // Silently fail
+    console.debug('Notification haptic unavailable:', error.message);
   }
 };
 
@@ -74,7 +76,7 @@ export const triggerConfirmation = async () => {
     await new Promise(r => setTimeout(r, 100));
     await Haptics.impact({ style: ImpactStyle.Medium });
   } catch (error) {
-    // Silently fail
+    console.debug('Confirmation haptic unavailable:', error.message);
   }
 };
 
@@ -83,6 +85,6 @@ export const triggerError = async () => {
   try {
     await Haptics.impact({ style: ImpactStyle.Heavy });
   } catch (error) {
-    // Silently fail
+    console.debug('Error haptic unavailable:', error.message);
   }
 };

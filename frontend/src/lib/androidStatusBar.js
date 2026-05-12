@@ -23,7 +23,8 @@ export function initAndroidStatusBar() {
         StatusBar.setStyle({ style: 'DARK' });
       }
     } catch (e) {
-      // Silently fail if plugin methods not available
+      // StatusBar plugin methods not available on this platform
+      console.debug('StatusBar update unavailable:', e.message);
     }
   };
 

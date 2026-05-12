@@ -6,14 +6,18 @@ import pytest
 import requests
 import os
 import uuid
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', '').rstrip('/')
 
-# Test credentials
-TEST_EMAIL = "testuser123@paysible.com"
-TEST_PASSWORD = "Test123!"
-NEW_USER_EMAIL = f"TEST_newuser_{uuid.uuid4().hex[:8]}@paysible.com"
-NEW_USER_PASSWORD = "TestPass123!"
+# Test credentials from environment variables
+TEST_EMAIL = os.environ.get('TEST_USER_EMAIL', 'testuser123@pursible.com')
+TEST_PASSWORD = os.environ.get('TEST_USER_PASSWORD', 'Test123!')
+NEW_USER_EMAIL = f"TEST_newuser_{uuid.uuid4().hex[:8]}@pursible.com"
+NEW_USER_PASSWORD = os.environ.get('TEST_USER_PASSWORD', 'TestPass123!')
 
 
 class TestHealthEndpoint:

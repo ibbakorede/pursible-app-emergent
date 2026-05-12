@@ -20,9 +20,9 @@ export function HomePageSkeleton() {
 
       {/* Quick Actions */}
       <div className="grid grid-cols-3 gap-3">
-        {[...Array(3)].map((_, i) => (
-          <Skeleton key={i} className="h-20 rounded-2xl" aria-label={`Loading quick action ${i + 1}`} />
-        ))}
+        <Skeleton key="action-deposit" className="h-20 rounded-2xl" aria-label="Loading deposit action" />
+        <Skeleton key="action-withdraw" className="h-20 rounded-2xl" aria-label="Loading withdraw action" />
+        <Skeleton key="action-convert" className="h-20 rounded-2xl" aria-label="Loading convert action" />
       </div>
 
       {/* Quick Converter */}
@@ -31,9 +31,9 @@ export function HomePageSkeleton() {
       {/* Recent Transactions */}
       <div className="space-y-3">
         <Skeleton className="h-5 w-32 rounded-lg" aria-label="Loading recent transactions title" />
-        {[...Array(3)].map((_, i) => (
-          <Skeleton key={i} className="h-20 rounded-2xl" aria-label={`Loading transaction ${i + 1}`} />
-        ))}
+        <Skeleton key="txn-1" className="h-20 rounded-2xl" aria-label="Loading transaction 1" />
+        <Skeleton key="txn-2" className="h-20 rounded-2xl" aria-label="Loading transaction 2" />
+        <Skeleton key="txn-3" className="h-20 rounded-2xl" aria-label="Loading transaction 3" />
       </div>
     </div>
   );
@@ -56,9 +56,9 @@ export function WalletPageSkeleton() {
 
       {/* Quick Actions */}
       <div className="grid grid-cols-3 gap-3">
-        {[...Array(3)].map((_, i) => (
-          <Skeleton key={i} className="h-20 rounded-2xl" aria-label={`Loading wallet action ${i + 1}`} />
-        ))}
+        <Skeleton key="wallet-action-1" className="h-20 rounded-2xl" aria-label="Loading wallet action 1" />
+        <Skeleton key="wallet-action-2" className="h-20 rounded-2xl" aria-label="Loading wallet action 2" />
+        <Skeleton key="wallet-action-3" className="h-20 rounded-2xl" aria-label="Loading wallet action 3" />
       </div>
 
       {/* Currency Converter */}
@@ -67,9 +67,10 @@ export function WalletPageSkeleton() {
       {/* Wallet Cards */}
       <div className="space-y-3">
         <Skeleton className="h-4 w-20 rounded-lg" aria-label="Loading wallet cards title" />
-        {[...Array(4)].map((_, i) => (
-          <Skeleton key={i} className="h-24 rounded-2xl" aria-label={`Loading wallet card for currency ${i + 1}`} />
-        ))}
+        <Skeleton key="wallet-usd" className="h-24 rounded-2xl" aria-label="Loading USD wallet" />
+        <Skeleton key="wallet-usdc" className="h-24 rounded-2xl" aria-label="Loading USDC wallet" />
+        <Skeleton key="wallet-usdt" className="h-24 rounded-2xl" aria-label="Loading USDT wallet" />
+        <Skeleton key="wallet-ngn" className="h-24 rounded-2xl" aria-label="Loading NGN wallet" />
       </div>
     </div>
   );
@@ -89,9 +90,9 @@ export function TransactionsPageSkeleton() {
 
       {/* Summary Strip */}
       <div className="grid grid-cols-3 gap-2">
-        {[...Array(3)].map((_, i) => (
-          <Skeleton key={i} className="h-20 rounded-xl" aria-label={`Loading transaction summary ${i + 1}`} />
-        ))}
+        <Skeleton key="summary-total" className="h-20 rounded-xl" aria-label="Loading total summary" />
+        <Skeleton key="summary-in" className="h-20 rounded-xl" aria-label="Loading inflow summary" />
+        <Skeleton key="summary-out" className="h-20 rounded-xl" aria-label="Loading outflow summary" />
       </div>
 
       {/* Search */}
@@ -99,9 +100,9 @@ export function TransactionsPageSkeleton() {
 
       {/* Direction Filters */}
       <div className="flex gap-2">
-        {[...Array(3)].map((_, i) => (
-          <Skeleton key={i} className="h-9 w-20 rounded-lg" aria-label={`Loading direction filter ${i + 1}`} />
-        ))}
+        <Skeleton key="filter-all" className="h-9 w-20 rounded-lg" aria-label="Loading all filter" />
+        <Skeleton key="filter-in" className="h-9 w-20 rounded-lg" aria-label="Loading inbound filter" />
+        <Skeleton key="filter-out" className="h-9 w-20 rounded-lg" aria-label="Loading outbound filter" />
       </div>
 
       {/* Type/Status Filters */}
@@ -112,17 +113,17 @@ export function TransactionsPageSkeleton() {
 
       {/* Transaction List */}
       <div className="bg-card rounded-2xl overflow-hidden border border-border space-y-0">
-        {[...Array(6)].map((_, i) => (
-          <div key={i} className="border-b border-border last:border-0 px-4 py-4" aria-label={`Loading transaction item ${i + 1}`}>
+        {['txn-item-1', 'txn-item-2', 'txn-item-3', 'txn-item-4', 'txn-item-5', 'txn-item-6'].map((id) => (
+          <div key={id} className="border-b border-border last:border-0 px-4 py-4" aria-label={`Loading transaction ${id}`}>
             <div className="flex items-center gap-3.5">
-              <Skeleton className="h-10 w-10 rounded-2xl flex-shrink-0" aria-label={`Loading transaction icon ${i + 1}`} />
+              <Skeleton className="h-10 w-10 rounded-2xl flex-shrink-0" aria-label="Loading transaction icon" />
               <div className="flex-1 space-y-2">
-                <Skeleton className="h-4 w-24 rounded-lg" aria-label={`Loading transaction type ${i + 1}`} />
-                <Skeleton className="h-3 w-32 rounded-lg" aria-label={`Loading transaction date ${i + 1}`} />
+                <Skeleton className="h-4 w-24 rounded-lg" aria-label="Loading transaction type" />
+                <Skeleton className="h-3 w-32 rounded-lg" aria-label="Loading transaction date" />
               </div>
               <div className="text-right space-y-2">
-                <Skeleton className="h-4 w-20 rounded-lg" aria-label={`Loading transaction amount ${i + 1}`} />
-                <Skeleton className="h-3 w-16 rounded-lg" aria-label={`Loading transaction status ${i + 1}`} />
+                <Skeleton className="h-4 w-20 rounded-lg" aria-label="Loading transaction amount" />
+                <Skeleton className="h-3 w-16 rounded-lg" aria-label="Loading transaction status" />
               </div>
             </div>
           </div>
