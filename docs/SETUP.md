@@ -1,8 +1,8 @@
-# Paysible - Developer Setup Guide
+# Pursible - Developer Setup Guide
 
 ## Overview
 
-Paysible is a fintech application for cross-border payments, built with:
+Pursible is a fintech application for cross-border payments, built with:
 - **Frontend:** React (Create React App) + Tailwind CSS + Shadcn/UI
 - **Backend:** FastAPI (Python) + MongoDB
 - **Authentication:** JWT tokens + WebAuthn biometrics

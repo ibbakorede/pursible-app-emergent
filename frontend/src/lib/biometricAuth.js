@@ -3,9 +3,9 @@
  * Uses WebAuthn API for fingerprint/face recognition
  */
 
-const BIOMETRIC_CREDENTIAL_KEY = 'paysible_biometric_credential';
-const BIOMETRIC_ENABLED_KEY = 'paysible_biometric_enabled';
-const BIOMETRIC_USER_KEY = 'paysible_biometric_user';
+const BIOMETRIC_CREDENTIAL_KEY = 'pursible_biometric_credential';
+const BIOMETRIC_ENABLED_KEY = 'pursible_biometric_enabled';
+const BIOMETRIC_USER_KEY = 'pursible_biometric_user';
 
 // Check if WebAuthn is supported
 export const isBiometricSupported = () => {
@@ -74,7 +74,7 @@ export const registerBiometric = async (userEmail, userName) => {
   const publicKeyCredentialCreationOptions = {
     challenge,
     rp: {
-      name: 'Paysible',
+      name: 'Pursible',
       id: window.location.hostname,
     },
     user: {

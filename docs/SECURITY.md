@@ -1,8 +1,8 @@
-# Paysible - Security Guidelines
+# Pursible - Security Guidelines
 
 ## Overview
 
-This document outlines the security measures implemented in Paysible and best practices for maintaining security in production deployments.
+This document outlines the security measures implemented in Pursible and best practices for maintaining security in production deployments.
 
 ---
 
@@ -192,7 +192,7 @@ Content-Security-Policy: default-src 'self'
 
 If you discover a security vulnerability:
 1. **Do NOT** create a public GitHub issue
-2. Email: security@paysible.com
+2. Email: security@pursible.com
 3. Include: steps to reproduce, impact assessment
 4. We aim to respond within 48 hours
 

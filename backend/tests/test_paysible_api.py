@@ -1,5 +1,5 @@
 """
-Paysible Backend API Tests
+Pursible Backend API Tests
 Tests for: Authentication, Wallets, Conversion Rates, KYC, Bank Accounts, File Upload
 """
 import pytest

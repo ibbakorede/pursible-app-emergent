@@ -1,4 +1,4 @@
-# Paysible - API Documentation
+# Pursible - API Documentation
 
 ## Base URL
 ```

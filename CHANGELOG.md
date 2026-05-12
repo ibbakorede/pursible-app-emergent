@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to Paysible will be documented in this file.
+All notable changes to Pursible will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
@@ -26,7 +26,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **UI Enhancements**
   - Currency logos: US Flag (USD), USDC logo, Tether logo, Nigeria Flag (NGN)
   - Light/Dark mode toggle in Profile > Preferences
-  - Paysible brand logo on login page
+  - Pursible brand logo on login page
   - Updated tagline: "Send, Receive, Convert & Withdraw — Instantly"
   - Enhanced bottom navigation with larger icons
   - Clickable currency cards on Convert page for quick selection

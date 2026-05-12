@@ -1,5 +1,5 @@
 /**
- * API Client for Paysible - Replaces Base44 SDK
+ * API Client for Pursible - Replaces Base44 SDK
  * Connects to our FastAPI backend
  */
 import axios from 'axios';

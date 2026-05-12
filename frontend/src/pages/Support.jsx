@@ -65,7 +65,7 @@ export default function Support() {
 
             {/* Email Support */}
             <a
-              href="mailto:support@paysible.com?subject=Paysible%20Support%20Request"
+              href="mailto:support@paysible.com?subject=Pursible%20Support%20Request"
               className="flex items-center gap-3.5 px-4 py-4 hover:bg-muted/50 transition-colors"
             >
               <div className="w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0 bg-purple-50">

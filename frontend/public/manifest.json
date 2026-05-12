@@ -1,6 +1,6 @@
 {
-  "name": "Paysible",
-  "short_name": "Paysible",
+  "name": "Pursible",
+  "short_name": "Pursible",
   "description": "Send, receive and convert USD, USDC, USDT and NGN instantly",
   "start_url": "/",
   "display": "standalone",

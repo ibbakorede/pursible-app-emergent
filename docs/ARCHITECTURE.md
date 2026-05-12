@@ -1,4 +1,4 @@
-# Paysible - Architecture Documentation
+# Pursible - Architecture Documentation
 
 ## System Overview
 

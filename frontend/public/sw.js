@@ -1,6 +1,6 @@
-// Paysible Service Worker for Push Notifications
+// Pursible Service Worker for Push Notifications
 
-const CACHE_NAME = 'paysible-v1';
+const CACHE_NAME = 'pursible-v1';
 
 // Install event
 self.addEventListener('install', (event) => {
@@ -19,10 +19,10 @@ self.addEventListener('push', (event) => {
   console.log('Push notification received:', event);
 
   let data = {
-    title: 'Paysible',
+    title: 'Pursible',
     body: 'You have a new notification',
-    icon: '/paysible_icon_white.svg',
-    badge: '/paysible_icon_white.svg',
+    icon: '/pursible_icon_white.svg',
+    badge: '/pursible_icon_white.svg',
   };
 
   if (event.data) {
@@ -38,7 +38,7 @@ self.addEventListener('push', (event) => {
     icon: data.icon,
     badge: data.badge,
     vibrate: [200, 100, 200],
-    tag: data.tag || 'paysible-notification',
+    tag: data.tag || 'pursible-notification',
     renotify: true,
     data: data.data || {},
     actions: data.actions || [],

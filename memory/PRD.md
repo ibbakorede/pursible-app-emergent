@@ -1,8 +1,8 @@
-# Paysible - Product Requirements Document
+# Pursible - Product Requirements Document
 
 ## Product Overview
 
-**Paysible** is a fintech application that enables users to send, receive, convert, and withdraw money across multiple currencies. The app focuses on the USD-NGN corridor with support for stablecoins (USDC, USDT).
+**Pursible** is a fintech application that enables users to send, receive, convert, and withdraw money across multiple currencies. The app focuses on the USD-NGN corridor with support for stablecoins (USDC, USDT).
 
 ### Tagline
 *"Send, Receive, Convert & Withdraw — Instantly"*

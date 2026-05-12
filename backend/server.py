@@ -1,5 +1,5 @@
 """
-Paysible Backend - FastAPI Server
+Pursible Backend - FastAPI Server
 Replicates Base44 cloud functions for Emergent platform
 """
 from fastapi import FastAPI, APIRouter, HTTPException, Depends, Query, Request, UploadFile, File
@@ -30,7 +30,7 @@ client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ['DB_NAME']]
 
 # JWT Settings
-JWT_SECRET = os.environ.get('JWT_SECRET', 'paysible-secret-key-change-in-production')
+JWT_SECRET = os.environ.get('JWT_SECRET', 'pursible-secret-key-change-in-production')
 JWT_ALGORITHM = 'HS256'
 JWT_EXPIRATION_HOURS = 24 * 7  # 7 days
 
@@ -49,7 +49,7 @@ DOJAH_BASE = "https://api.dojah.io"
 BRIDGE_BASE = "https://api.bridge.xyz/v0"
 
 # Create the main app
-app = FastAPI(title="Paysible API", version="1.0.0")
+app = FastAPI(title="Pursible API", version="1.0.0")
 
 # Create routers
 api_router = APIRouter(prefix="/api")
@@ -613,7 +613,7 @@ async def submit_kyc(data: dict, user: dict = Depends(get_current_user)):
                 "id": generate_id(),
                 "user_email": user["email"],
                 "title": "Identity Verified",
-                "message": "Your identity has been verified. You can now use all Paysible features.",
+                "message": "Your identity has been verified. You can now use all Pursible features.",
                 "type": "kyc",
                 "is_read": False,
                 "created_date": get_timestamp()
@@ -906,7 +906,7 @@ async def swap_currency(data: SwapRequest, user: dict = Depends(get_current_user
                     "rate": rate,
                     "feePercent": fee_percent,
                     "feeAmount": round(fee_amount, 6),
-                    "provider": "paysible"
+                    "provider": "pursible"
                 }
             }
         
@@ -952,7 +952,7 @@ async def swap_currency(data: SwapRequest, user: dict = Depends(get_current_user
             "to_amount": to_amount,
             "fee": round(fee_amount, 6),
             "status": "completed",
-            "provider": "paysible",
+            "provider": "pursible",
             "reference_id": reference_id,
             "description": f"{from_currency} to {to_currency} swap",
             "timeline": [
@@ -1462,7 +1462,7 @@ async def seed_demo_data():
             "fields": [
                 {"key": "bank_name", "label": "Bank Name", "value": "Wema Bank"},
                 {"key": "account_number", "label": "Account Number", "value": "9900000001"},
-                {"key": "account_name", "label": "Account Name", "value": "Paysible Ltd"},
+                {"key": "account_name", "label": "Account Name", "value": "Pursible Ltd"},
             ],
             "created_date": get_timestamp()
         }
@@ -1555,7 +1555,7 @@ async def health_check():
 @api_router.get("/")
 async def root():
     """Root endpoint"""
-    return {"message": "Paysible API", "version": "1.0.0"}
+    return {"message": "Pursible API", "version": "1.0.0"}
 
 # Include routers
 api_router.include_router(auth_router)

@@ -126,11 +126,11 @@ export default function Login() {
           <div className="inline-flex items-center justify-center w-20 h-20 mb-5 relative">
             <div className="absolute inset-0 bg-primary/20 rounded-2xl blur-xl animate-pulse" />
             <div className="relative bg-gradient-to-br from-primary/20 to-primary/5 backdrop-blur-sm border border-primary/20 rounded-2xl p-3">
-              <img src="/paysible_icon_white.svg" alt="Paysible" className="w-full h-full drop-shadow-2xl" />
+              <img src="/pursible_icon_white.svg" alt="Pursible" className="w-full h-full drop-shadow-2xl" />
             </div>
           </div>
           <h1 className="text-4xl font-bold text-white mb-3 tracking-tight">
-            Paysible
+            Pursible
           </h1>
           <p className="text-gray-400 text-sm max-w-xs mx-auto leading-relaxed">
             Send, Receive, Convert & Withdraw — Instantly

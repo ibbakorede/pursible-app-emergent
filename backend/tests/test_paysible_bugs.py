@@ -1,5 +1,5 @@
 """
-Paysible Backend Tests - Bug Fixes Verification
+Pursible Backend Tests - Bug Fixes Verification
 Tests for the 4 reported bugs:
 1. Deposit Funds tab - DepositAccount entity
 2. Currency Conversion rates - /api/rates endpoint

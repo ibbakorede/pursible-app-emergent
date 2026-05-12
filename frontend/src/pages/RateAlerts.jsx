@@ -95,7 +95,7 @@ export default function RateAlerts() {
           toast.success(`Rate alert triggered! ${msg}`);
         }
         if (alert.notify_email) {
-          await base44.integrations.Core.SendEmail({ to: user.email, subject: 'Rate Alert Triggered — Paysible', body: `Hi ${user.full_name || ''},\n\nYour rate alert has been triggered!\n\n${msg}\n\nLog in to act on this opportunity.\n\n— Paysible` });
+          await base44.integrations.Core.SendEmail({ to: user.email, subject: 'Rate Alert Triggered — Pursible', body: `Hi ${user.full_name || ''},\n\nYour rate alert has been triggered!\n\n${msg}\n\nLog in to act on this opportunity.\n\n— Pursible` });
         }
         queryClient.invalidateQueries({ queryKey: ['rate-alerts', user.email] });
         queryClient.invalidateQueries({ queryKey: ['notifications'] });

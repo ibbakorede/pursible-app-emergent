@@ -1,5 +1,5 @@
 /**
- * entities.js — Centralized entity access layer for Paysible
+ * entities.js — Centralized entity access layer for Pursible
  *
  * All backend integration functions (Steps 3–5) import from here.
  * UI pages continue to import directly from base44Client as before — do not change them.

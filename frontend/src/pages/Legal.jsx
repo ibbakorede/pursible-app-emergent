@@ -15,9 +15,9 @@ export default function Legal() {
         <TabsContent value="terms" className="bg-card rounded-2xl p-5 mt-3">
           <h3 className="font-semibold mb-2">Terms of Service</h3>
           <p className="text-sm text-muted-foreground leading-relaxed">
-            By using Paysible, you agree to these terms and conditions. Paysible provides cross-border payment services including receiving, converting, and withdrawing funds. 
+            By using Pursible, you agree to these terms and conditions. Pursible provides cross-border payment services including receiving, converting, and withdrawing funds. 
             All transactions are subject to applicable laws and regulations. Users must complete identity verification before using certain features. 
-            Paysible reserves the right to suspend accounts suspected of fraudulent activity. Conversion rates and fees are displayed before each transaction is confirmed.
+            Pursible reserves the right to suspend accounts suspected of fraudulent activity. Conversion rates and fees are displayed before each transaction is confirmed.
           </p>
         </TabsContent>
         <TabsContent value="privacy" className="bg-card rounded-2xl p-5 mt-3">

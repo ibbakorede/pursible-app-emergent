@@ -1,7 +1,7 @@
-# Paysible
+# Pursible
 
 <p align="center">
-  <img src="frontend/public/paysible_icon_white.svg" alt="Paysible Logo" width="80" height="80">
+  <img src="frontend/public/pursible_icon_white.svg" alt="Pursible Logo" width="80" height="80">
 </p>
 
 <p align="center">
@@ -68,8 +68,8 @@
 
 ```bash
 # Clone repository
-git clone https://github.com/your-username/paysible-app.git
-cd paysible-app
+git clone https://github.com/your-username/pursible-app.git
+cd pursible-app
 
 # Backend setup
 cd backend
@@ -96,7 +96,7 @@ Create `.env` files:
 **backend/.env**
 ```env
 MONGO_URL=mongodb://localhost:27017
-DB_NAME=paysible
+DB_NAME=pursible
 JWT_SECRET=your-secret-key
 ```
 
@@ -120,7 +120,7 @@ REACT_APP_BACKEND_URL=http://localhost:8001
 ## Project Structure
 
 ```
-paysible/
+pursible/
 ├── backend/
 │   ├── server.py         # FastAPI application
 │   ├── requirements.txt  # Python dependencies
@@ -178,7 +178,7 @@ yarn test
 ```
 
 **Test Credentials:**
-- Email: `testuser123@paysible.com`
+- Email: `testuser123@pursible.com`
 - Password: `Test123!`
 
 ---
@@ -218,7 +218,7 @@ This project is proprietary software. All rights reserved.
 ## Support
 
 - 💬 [Discord](https://discord.gg/VzKfwCXC4A)
-- 📧 Email: support@paysible.com
+- 📧 Email: support@pursible.com
 
 ---
 
