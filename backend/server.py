@@ -707,60 +707,26 @@ async def verify_bank_account(data: BankVerifyRequest, user: dict = Depends(get_
 
 @functions_router.post("/withdraw")
 async def withdraw(data: WithdrawRequest, user: dict = Depends(get_current_user)):
-    """Process withdrawal - thin handler, business logic in services"""
+    """Process withdrawal - thin handler delegating to WithdrawalService"""
     try:
-        # Check KYC requirement
         kyc_check = await kyc_service.check_kyc_requirement(user["email"])
         if kyc_check["blocked"]:
             return kyc_check["response"]
         
-        currency = data.currency.upper()
-        amount = data.amount
-        fee = 50 if currency == "NGN" else 0
-        
-        # Validate and check balance via service
-        balance_check = await withdrawal_service.check_balance(user["email"], currency, amount, fee)
-        if not balance_check["sufficient"]:
-            raise HTTPException(status_code=400, detail=balance_check["error"])
-        
-        # Process withdrawal via service
-        reference_id = transaction_service.generate_reference("WD", currency)
-        
-        # Debit wallet
-        await wallet_service.update_balance(
-            balance_check["wallet_id"],
-            set_available=balance_check["available"] - (amount + fee),
-            set_pending=0
-        )
-        
-        # Create transaction
-        tx_config = TransactionConfig(
+        result = await withdrawal_service.process_full_withdrawal(
             user_email=user["email"],
-            tx_type="withdrawal",
-            from_currency=currency,
-            to_currency=currency,
-            from_amount=amount,
-            to_amount=amount,
-            fee=fee,
-            status="processing",
-            provider="flutterwave" if currency == "NGN" else "manual",
-            description=f"{currency} withdrawal",
-            reference_id=reference_id
-        )
-        tx = await transaction_service.create_transaction(tx_config)
-        
-        # Send notification
-        notif = NotificationTemplates.withdrawal_initiated(amount, currency)
-        await notification_service.create_transaction_notification(
-            user["email"], notif["title"], notif["message"], tx["id"]
+            currency=data.currency,
+            amount=data.amount,
+            destination=data.destination,
+            wallet_service=wallet_service,
+            transaction_service=transaction_service,
+            notification_service=notification_service
         )
         
-        return {
-            "success": True,
-            "transaction": {"id": tx["id"], "referenceId": reference_id, "status": "processing", "amount": amount, "currency": currency, "fee": fee},
-            "message": "Withdrawal initiated successfully"
-        }
+        if not result["success"]:
+            raise HTTPException(status_code=400, detail=result["error"])
         
+        return result
     except HTTPException:
         raise
     except Exception as e:
@@ -769,97 +735,26 @@ async def withdraw(data: WithdrawRequest, user: dict = Depends(get_current_user)
 
 @functions_router.post("/swapCurrency")
 async def swap_currency(data: SwapRequest, user: dict = Depends(get_current_user)):
-    """Swap between currencies - Refactored to use services"""
+    """Swap between currencies - thin handler delegating to SwapService"""
     try:
-        # Check KYC requirement
         kyc_check = await kyc_service.check_kyc_requirement(user["email"])
         if kyc_check["blocked"]:
             return kyc_check["response"]
         
-        from_currency = data.fromCurrency.upper()
-        to_currency = data.toCurrency.upper()
-        amount = data.amount
-        
-        # Validate source wallet and balance
-        source_wallet = await wallet_service.get_wallet(user["email"], from_currency)
-        if not source_wallet:
-            raise HTTPException(status_code=400, detail=f"No {from_currency} wallet found")
-        
-        if source_wallet.get("available_balance", 0) < amount:
-            raise HTTPException(status_code=400, detail=f"Insufficient {from_currency} balance")
-        
-        # Get conversion rate
-        rate_info = await rate_service.get_rate(from_currency, to_currency)
-        rate = rate_info["rate"]
-        fee_percent = rate_info["fee_percent"]
-        
-        # Calculate conversion
-        conversion = rate_service.calculate_conversion(amount, rate, fee_percent)
-        
-        # If not confirmed, return quote only
-        if not data.confirmed:
-            return {
-                "success": True,
-                "quote": {
-                    "fromCurrency": from_currency,
-                    "toCurrency": to_currency,
-                    "fromAmount": amount,
-                    "toAmount": conversion["to_amount"],
-                    "rate": rate,
-                    "feePercent": fee_percent,
-                    "feeAmount": conversion["fee_amount"],
-                    "provider": rate_info["provider"]
-                }
-            }
-        
-        # Execute swap - debit source wallet
-        await wallet_service.debit_wallet(source_wallet["id"], amount)
-        
-        # Credit destination wallet
-        dest_wallet = await wallet_service.get_or_create_wallet(user["email"], to_currency)
-        await wallet_service.credit_wallet(dest_wallet["id"], conversion["to_amount"])
-        
-        # Create transaction record using TransactionConfig
-        reference_id = transaction_service.generate_reference("SW")
-        tx_config = TransactionConfig(
+        result = await swap_service.process_full_swap(
             user_email=user["email"],
-            tx_type="conversion",
-            from_currency=from_currency,
-            to_currency=to_currency,
-            from_amount=amount,
-            to_amount=conversion["to_amount"],
-            fee=conversion["fee_amount"],
-            status="completed",
-            provider="pursible",
-            description=f"{from_currency} to {to_currency} swap",
-            reference_id=reference_id
-        )
-        tx = await transaction_service.create_transaction(tx_config)
-        
-        # Update transaction status to completed
-        await transaction_service.update_status(tx["id"], "completed", "Swap completed")
-        
-        # Send notification
-        notif = NotificationTemplates.swap_completed(amount, from_currency, conversion["to_amount"], to_currency)
-        await notification_service.create_transaction_notification(
-            user["email"], notif["title"], notif["message"], tx["id"]
+            from_currency=data.fromCurrency,
+            to_currency=data.toCurrency,
+            amount=data.amount,
+            confirmed=data.confirmed,
+            wallet_service=wallet_service,
+            notification_service=notification_service
         )
         
-        return {
-            "success": True,
-            "transaction": {
-                "id": tx["id"],
-                "referenceId": reference_id,
-                "fromCurrency": from_currency,
-                "toCurrency": to_currency,
-                "fromAmount": amount,
-                "toAmount": conversion["to_amount"],
-                "fee": conversion["fee_amount"],
-                "rate": rate,
-                "status": "completed"
-            }
-        }
+        if not result["success"]:
+            raise HTTPException(status_code=400, detail=result["error"])
         
+        return result
     except HTTPException:
         raise
     except Exception as e:

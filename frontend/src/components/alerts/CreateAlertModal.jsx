@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,13 +7,7 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Bell } from 'lucide-react';
 
-const PAIRS = [
-  { from: 'USD', to: 'NGN' },
-  { from: 'USD', to: 'USDC' },
-  { from: 'USDC', to: 'NGN' },
-  { from: 'USDC', to: 'USD' },
-  { from: 'NGN', to: 'USD' },
-];
+const FROM_CURRENCIES = ['USD', 'USDC', 'NGN'];
 
 export default function CreateAlertModal({ open, onClose, onSave, currentRates }) {
   const [form, setForm] = useState({
@@ -26,6 +20,12 @@ export default function CreateAlertModal({ open, onClose, onSave, currentRates }
   });
 
   const set = (key, val) => setForm(f => ({ ...f, [key]: val }));
+
+  // Memoize filtered destination currencies
+  const toCurrencyOptions = useMemo(
+    () => FROM_CURRENCIES.filter(c => c !== form.from_currency),
+    [form.from_currency]
+  );
 
   const currentRate = currentRates?.find(
     r => r.from_currency === form.from_currency && r.to_currency === form.to_currency
@@ -53,14 +53,14 @@ export default function CreateAlertModal({ open, onClose, onSave, currentRates }
               <Select value={form.from_currency} onValueChange={v => set('from_currency', v)}>
                 <SelectTrigger className="rounded-xl"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {['USD', 'USDC', 'NGN'].map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                  {FROM_CURRENCIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
                 </SelectContent>
               </Select>
               <span className="flex items-center text-muted-foreground font-medium">→</span>
               <Select value={form.to_currency} onValueChange={v => set('to_currency', v)}>
                 <SelectTrigger className="rounded-xl"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {['USD', 'USDC', 'NGN'].filter(c => c !== form.from_currency).map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                  {toCurrencyOptions.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>

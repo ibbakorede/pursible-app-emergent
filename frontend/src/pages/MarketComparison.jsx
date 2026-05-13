@@ -90,6 +90,10 @@ export default function MarketComparison() {
     };
   }, [pair1, pair2, rates]);
 
+  // Memoize filtered currency options for dropdowns
+  const pair1ToOptions = useMemo(() => CURRENCIES.filter(c => c !== pair1.from), [pair1.from]);
+  const pair2ToOptions = useMemo(() => CURRENCIES.filter(c => c !== pair2.from), [pair2.from]);
+
   if (isLoading) return <LoadingSpinner />;
 
   const rate1Key = `${pair1.from}-${pair1.to}`;
@@ -128,7 +132,7 @@ export default function MarketComparison() {
                 onChange={(e) => setPair1({ ...pair1, to: e.target.value })}
                 className="flex-1 px-3 py-2 text-sm rounded-lg border border-input bg-background focus:outline-none focus:ring-1 focus:ring-primary"
               >
-                {CURRENCIES.filter(c => c !== pair1.from).map(c => (
+                {pair1ToOptions.map(c => (
                   <option key={c} value={c}>{c}</option>
                 ))}
               </select>
@@ -160,7 +164,7 @@ export default function MarketComparison() {
                 onChange={(e) => setPair2({ ...pair2, to: e.target.value })}
                 className="flex-1 px-3 py-2 text-sm rounded-lg border border-input bg-background focus:outline-none focus:ring-1 focus:ring-primary"
               >
-                {CURRENCIES.filter(c => c !== pair2.from).map(c => (
+                {pair2ToOptions.map(c => (
                   <option key={c} value={c}>{c}</option>
                 ))}
               </select>

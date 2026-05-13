@@ -40,8 +40,16 @@ export default function CurrencyCalculator() {
 
   const swap = () => { setFromCurrency(toCurrency); setToCurrency(fromCurrency); setAmount(''); };
 
-  if (pickingFor) {
+  // Memoize filtered currencies for picker
+  const filteredCurrencies = useMemo(() => {
     const other = pickingFor === 'from' ? toCurrency : fromCurrency;
+    return SUPPORTED.filter(c => c !== other);
+  }, [pickingFor, toCurrency, fromCurrency]);
+
+  // Memoize active rates
+  const activeRates = useMemo(() => rates.filter(r => r.is_active), [rates]);
+
+  if (pickingFor) {
     return (
       <div className="min-h-screen bg-background">
         <div className="max-w-lg mx-auto px-4 pt-6 pb-10 space-y-4">
@@ -52,7 +60,7 @@ export default function CurrencyCalculator() {
             <h1 className="text-xl font-bold">Select {pickingFor === 'from' ? 'Source' : 'Destination'}</h1>
           </div>
           <div className="space-y-2">
-            {SUPPORTED.filter(c => c !== other).map(c => {
+            {filteredCurrencies.map(c => {
               const isSelected = pickingFor === 'from' ? c === fromCurrency : c === toCurrency;
               return (
                 <button key={c} onClick={() => { if (pickingFor === 'from') setFromCurrency(c); else setToCurrency(c); setAmount(''); setPickingFor(null); }}
@@ -72,8 +80,6 @@ export default function CurrencyCalculator() {
       </div>
     );
   }
-
-  const activeRates = rates.filter(r => r.is_active);
 
   return (
     <div className="min-h-screen bg-background">
