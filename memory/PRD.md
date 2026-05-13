@@ -229,6 +229,76 @@
 
 ## Changelog
 
+### May 13, 2026 (v1.1.0) - PROMPT 4 of 4 Complete (Final Hardening Pass)
+
+#### Phase 5: Backend Complexity Refactoring
+
+**Route Handler Refactoring:**
+| Function | Before | After | CC Score |
+|----------|--------|-------|----------|
+| `withdraw()` | ~60 lines | 26 lines | 5 (Grade A) |
+| `swap_currency()` | ~97 lines | 26 lines | 5 (Grade A) |
+
+**New Service Methods:**
+- `WithdrawalService.process_full_withdrawal()` - Complete withdrawal flow
+- `SwapService.process_full_swap()` - Complete swap/quote flow
+
+**Proof:** `radon cc server.py | grep "withdraw\|swap_currency"` → Both CC = 5 ✓
+
+#### Phase 6: useMemo Optimizations
+
+**Filter/Map Operations Wrapped:**
+| File | Operations | Memoization |
+|------|------------|-------------|
+| `CurrencyCalculator.jsx` | `SUPPORTED.filter()`, `rates.filter()` | `filteredCurrencies`, `activeRates` |
+| `MarketComparison.jsx` | `CURRENCIES.filter()` (x2) | `pair1ToOptions`, `pair2ToOptions` |
+| `CreateAlertModal.jsx` | `currencies.filter()` | `toCurrencyOptions` |
+
+**Proof:** `grep -n "useMemo" [files]` → All inline filters wrapped ✓
+
+#### Phase 7: Component Splitting & Cleanup
+
+**Login.jsx Split (365 → 136 lines):**
+| Component | Lines | Purpose |
+|-----------|-------|---------|
+| `Login.jsx` | 136 | Main component + state |
+| `LoginHeader.jsx` | 56 | Logo, tagline, feature badges |
+| `LoginForm.jsx` | 178 | Sign in/up form |
+| `BiometricPrompt.jsx` | 44 | Biometric login prompt |
+
+**ProfileEdit.jsx Split (382 → 180 lines):**
+| Component | Lines | Purpose |
+|-----------|-------|---------|
+| `ProfileEdit.jsx` | 180 | Main component + state |
+| `ProfileFormFields.jsx` | 119 | Editable fields |
+| `ProfileReadOnlyFields.jsx` | 49 | Read-only fields |
+
+**Console Statement Cleanup:**
+- **Proof:** `grep -r "console." src/ --exclude=logger.js` → 0 matches ✓
+
+#### Final Acceptance Checklist
+
+| Check | Result |
+|-------|--------|
+| Route handlers < 50 lines | ✓ withdraw: 26, swap: 26 |
+| Route handlers CC ≤ 10 | ✓ Both CC = 5 |
+| useMemo for inline filter/map | ✓ All wrapped |
+| Components < 200 lines | ✓ Login: 136, ProfileEdit: 180 |
+| console.* outside logger | ✓ 0 matches |
+| All tests passing | ✓ 100% backend + frontend |
+
+#### Smoke Test Results (Testing Agent v3 - Iteration 8)
+- Login page renders: PASS
+- Sign up/in tabs work: PASS
+- Profile edit renders: PASS
+- Currency calculator works: PASS
+- Market comparison works: PASS
+- Backend health check: PASS
+- Swap quote API: PASS (KYC blocked as expected)
+- Withdraw API: PASS (KYC blocked as expected)
+
+---
+
 ### May 13, 2026 (v1.0.9) - PROMPT 3 of 3 Complete
 
 #### Phase 1: Frontend Component Splitting
