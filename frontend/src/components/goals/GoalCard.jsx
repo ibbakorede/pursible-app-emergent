@@ -17,7 +17,12 @@ export default function GoalCard({ goal, onEdit, onDelete }) {
     other: 'bg-gray-50 text-gray-700 border-gray-200',
   };
 
-  const progressColor = isCompleted ? 'bg-emerald-500' : progress > 75 ? 'bg-blue-500' : progress > 50 ? 'bg-amber-500' : 'bg-primary';
+  const getProgressColor = () => {
+    if (isCompleted) return 'bg-emerald-500';
+    if (progress > 75) return 'bg-blue-500';
+    if (progress > 50) return 'bg-amber-500';
+    return 'bg-primary';
+  };
 
   return (
     <div className={`rounded-2xl border overflow-hidden transition-all ${isCompleted ? 'bg-emerald-50/30 border-emerald-200' : 'bg-card border-border'}`}>
@@ -40,7 +45,7 @@ export default function GoalCard({ goal, onEdit, onDelete }) {
         <div className="space-y-2">
           <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
             <div
-              className={`h-full transition-all duration-500 ${progressColor}`}
+              className={`h-full transition-all duration-500 ${getProgressColor()}`}
               style={{ width: `${Math.min(progress, 100)}%` }}
             />
           </div>

@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 import { useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { Component } from 'react';
 import { base44 } from '@/api/base44Client';
@@ -90,7 +91,7 @@ const PAGE_SIZE = 20;
 class TransactionsErrorBoundary extends Component {
   constructor(props) { super(props); this.state = { hasError: false }; }
   static getDerivedStateFromError() { return { hasError: true }; }
-  componentDidCatch(err) { console.error('Transactions render error:', err); }
+  componentDidCatch(err) { logger.error('Transactions render error:', err); }
   render() {
     if (this.state.hasError) {
       return (

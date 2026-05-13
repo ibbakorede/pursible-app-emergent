@@ -1,3 +1,4 @@
+import { logger } from './logger';
 import { useEffect, useState } from 'react';
 import { base44 } from '@/api/base44Client';
 
@@ -21,7 +22,7 @@ export function usePushNotifications() {
       const subscription = await registration.pushManager.getSubscription();
       setIsSubscribed(!!subscription);
     } catch (error) {
-      console.error('Failed to check subscription:', error);
+      logger.error('Failed to check subscription:', error);
     }
   };
 
@@ -32,7 +33,7 @@ export function usePushNotifications() {
       const permission = await Notification.requestPermission();
       return permission === 'granted';
     } catch (error) {
-      console.error('Failed to request permission:', error);
+      logger.error('Failed to request permission:', error);
       return false;
     }
   };
@@ -55,7 +56,7 @@ export function usePushNotifications() {
       setIsSubscribed(true);
       return true;
     } catch (error) {
-      console.error('Failed to subscribe:', error);
+      logger.error('Failed to subscribe:', error);
       return false;
     } finally {
       setLoading(false);
@@ -75,7 +76,7 @@ export function usePushNotifications() {
       }
       return true;
     } catch (error) {
-      console.error('Failed to unsubscribe:', error);
+      logger.error('Failed to unsubscribe:', error);
       return false;
     } finally {
       setLoading(false);

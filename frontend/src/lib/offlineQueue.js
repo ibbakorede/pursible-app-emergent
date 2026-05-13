@@ -1,3 +1,4 @@
+import { logger } from './logger';
 import { openDB } from 'idb';
 
 const DB_NAME = 'FinanceApp';
@@ -197,7 +198,7 @@ const notifyListeners = (event) => {
     try {
       listener(event);
     } catch (err) {
-      console.error('Queue listener error:', err);
+      logger.error('Queue listener error:', err);
     }
   });
 
@@ -218,14 +219,14 @@ const notifyListeners = (event) => {
 };
 
 const handleOnlineRestored = () => {
-  console.log('Connection restored, attempting sync...');
+  logger.log('Connection restored, attempting sync...');
   notifyListeners({ type: 'online_restored', timestamp: new Date().toISOString() });
 
   // Request background sync if available
   if ('serviceWorker' in navigator && 'SyncManager' in window) {
     navigator.serviceWorker.ready.then(registration => {
       registration.sync.register('txsync').catch(err => {
-        console.log('Background sync not available:', err);
+        logger.log('Background sync not available:', err);
       });
     });
   }

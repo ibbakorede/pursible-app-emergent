@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
@@ -86,7 +87,7 @@ export default function RateAlerts() {
           });
           msg = aiResponse.message || msg;
         } catch {
-          console.warn('[RateAlerts] AI message failed, using default');
+          logger.warn('[RateAlerts] AI message failed, using default');
         }
         await base44.entities.RateAlert.update(alert.id, { triggered_at: new Date().toISOString(), is_active: false, last_checked_rate: rate.rate });
         if (alert.notify_inapp) {

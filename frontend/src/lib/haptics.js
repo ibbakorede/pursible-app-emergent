@@ -1,3 +1,4 @@
+import { logger } from './logger';
 import { Haptics, ImpactStyle } from '@capacitor/haptics';
 
 /**
@@ -22,7 +23,7 @@ export const initHaptics = async () => {
     // Capacitor handles this transparently
     return true;
   } catch (error) {
-    console.debug('Haptics init unavailable:', error.message);
+    logger.debug('Haptics init unavailable:', error.message);
     return false;
   }
 };
@@ -38,7 +39,7 @@ export const triggerHaptic = async (style = 'light') => {
     await Haptics.impact({ style: styleMap[style] || ImpactStyle.Light });
   } catch (error) {
     // Expected on web/non-capacitor environments
-    console.debug('Haptic feedback unavailable:', error.message);
+    logger.debug('Haptic feedback unavailable:', error.message);
   }
 };
 
@@ -47,7 +48,7 @@ export const triggerSelection = async () => {
   try {
     await Haptics.selectionStart();
   } catch (error) {
-    console.debug('Selection haptic unavailable:', error.message);
+    logger.debug('Selection haptic unavailable:', error.message);
   }
 };
 
@@ -61,7 +62,7 @@ export const triggerNotification = async (type = 'success') => {
     };
     await Haptics.notification({ type: typeMap[type] || 'Success' });
   } catch (error) {
-    console.debug('Notification haptic unavailable:', error.message);
+    logger.debug('Notification haptic unavailable:', error.message);
   }
 };
 
@@ -76,7 +77,7 @@ export const triggerConfirmation = async () => {
     await new Promise(r => setTimeout(r, 100));
     await Haptics.impact({ style: ImpactStyle.Medium });
   } catch (error) {
-    console.debug('Confirmation haptic unavailable:', error.message);
+    logger.debug('Confirmation haptic unavailable:', error.message);
   }
 };
 
@@ -85,6 +86,6 @@ export const triggerError = async () => {
   try {
     await Haptics.impact({ style: ImpactStyle.Heavy });
   } catch (error) {
-    console.debug('Error haptic unavailable:', error.message);
+    logger.debug('Error haptic unavailable:', error.message);
   }
 };

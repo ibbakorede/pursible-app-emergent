@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 import { Toaster } from "@/components/ui/toaster"
 import { QueryClientProvider } from '@tanstack/react-query'
 import { queryClientInstance } from '@/lib/query-client'
@@ -24,7 +25,7 @@ class GlobalErrorBoundary extends Component {
   }
 
   componentDidCatch(error, errorInfo) {
-    console.error('Global Error Boundary caught:', error, errorInfo);
+    logger.error('Global Error Boundary caught:', error, errorInfo);
   }
 
   render() {

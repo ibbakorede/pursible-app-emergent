@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 import { Component } from 'react';
 import { toast } from 'sonner';
 
@@ -21,7 +22,7 @@ export default class OptimisticUpdateErrorBoundary extends Component {
 
   componentDidCatch(error, errorInfo) {
     // Log error details for debugging
-    console.error('Optimistic update error:', error, errorInfo);
+    logger.error('Optimistic update error:', error, errorInfo);
   }
 
   render() {

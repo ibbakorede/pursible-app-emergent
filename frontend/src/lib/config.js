@@ -1,3 +1,4 @@
+import { logger } from './logger';
 /**
  * Environment configuration and validation
  * Ensures required environment variables are set
@@ -9,7 +10,7 @@ export const validateEnv = () => {
   const missing = requiredVars.filter(key => !process.env[key]);
   
   if (missing.length > 0) {
-    console.error(`Missing required environment variables: ${missing.join(', ')}`);
+    logger.error(`Missing required environment variables: ${missing.join(', ')}`);
     return false;
   }
   

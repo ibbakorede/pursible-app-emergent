@@ -1,3 +1,4 @@
+import { logger } from './logger';
 /**
  * Dynamically adjusts Android status bar color to match theme (dark/light)
  * Uses Capacitor's StatusBar plugin for native Android devices
@@ -24,7 +25,7 @@ export function initAndroidStatusBar() {
       }
     } catch (e) {
       // StatusBar plugin methods not available on this platform
-      console.debug('StatusBar update unavailable:', e.message);
+      logger.debug('StatusBar update unavailable:', e.message);
     }
   };
 

@@ -1,3 +1,4 @@
+import { logger } from './logger';
 // Comprehensive WebView and Periodic Sync support detection
 const getWebViewInfo = () => {
   const ua = navigator.userAgent.toLowerCase();
@@ -21,13 +22,13 @@ const isBackgroundSyncRestricted = async () => {
 
     // Old WebView versions (< 5.0) or Chrome versions < 49 don't support Periodic Sync
     if (isOldWebView || (chromeVersion && chromeVersion < 49)) {
-      console.log(`WebView/Chrome ${chromeVersion || isOldWebView} too old - prioritizing IndexedDB fallback`);
+      logger.log(`WebView/Chrome ${chromeVersion || isOldWebView} too old - prioritizing IndexedDB fallback`);
       return true;
     }
 
     // Check if Periodic Sync API exists
     if (!('periodicSync' in ServiceWorkerRegistration.prototype)) {
-      console.log('Periodic Sync API not available - prioritizing IndexedDB fallback');
+      logger.log('Periodic Sync API not available - prioritizing IndexedDB fallback');
       return true;
     }
 
@@ -36,19 +37,19 @@ const isBackgroundSyncRestricted = async () => {
       try {
         const permission = await navigator.permissions.query({ name: 'background-sync' });
         if (permission.state === 'denied') {
-          console.log('Background Sync permission denied - prioritizing IndexedDB fallback');
+          logger.log('Background Sync permission denied - prioritizing IndexedDB fallback');
           return true;
         }
       } catch {
         // Permissions API unavailable; assume restricted environment
-        console.log('Permissions API unavailable - assuming restricted, prioritizing IndexedDB fallback');
+        logger.log('Permissions API unavailable - assuming restricted, prioritizing IndexedDB fallback');
         return true;
       }
     }
     
     return false;
   } catch (error) {
-    console.log('WebView detection failed, defaulting to IndexedDB fallback:', error.message);
+    logger.log('WebView detection failed, defaulting to IndexedDB fallback:', error.message);
     return true; // Fail-safe: prioritize fallback on any error
   }
 };
@@ -92,7 +93,7 @@ const scheduleNextFallbackPoll = () => {
     maxIntervalMs
   );
 
-  console.log(`Fallback poll scheduled in ${Math.round(backoffMs / 1000)}s (retry #${fallbackRetryCount})`);
+  logger.log(`Fallback poll scheduled in ${Math.round(backoffMs / 1000)}s (retry #${fallbackRetryCount})`);
 
   fallbackTimer = setTimeout(() => {
     if (navigator.onLine) {
@@ -103,7 +104,7 @@ const scheduleNextFallbackPoll = () => {
 };
 
 const setupFallbackSync = async () => {
-  console.log('Setting up IndexedDB-based fallback sync with exponential backoff');
+  logger.log('Setting up IndexedDB-based fallback sync with exponential backoff');
   sessionStorage.setItem('__fallback_sync_active__', 'true');
   fallbackRetryCount = 0;
 
@@ -117,14 +118,14 @@ const setupFallbackSync = async () => {
 
   // On reconnect: reset backoff and sync immediately
   window.addEventListener('online', () => {
-    console.log('Device went online - triggering immediate fallback sync');
+    logger.log('Device went online - triggering immediate fallback sync');
     fallbackRetryCount = 0;
     triggerFallbackSync();
     scheduleNextFallbackPoll();
   });
 
   window.addEventListener('offline', () => {
-    console.log('Device went offline - pausing fallback sync');
+    logger.log('Device went offline - pausing fallback sync');
     if (fallbackTimer) clearTimeout(fallbackTimer);
   });
 };
@@ -136,17 +137,17 @@ export const registerServiceWorker = async () => {
       const registration = await navigator.serviceWorker.register('/service-worker.js', {
         scope: '/',
       });
-      console.log('Service Worker registered:', registration);
+      logger.log('Service Worker registered:', registration);
 
       // Ensure controller is ready before setting up sync
       await navigator.serviceWorker.ready;
-      console.log('Service Worker controller ready');
+      logger.log('Service Worker controller ready');
 
       // Prioritize IndexedDB fallback for restricted environments
       const isRestricted = await isBackgroundSyncRestricted();
 
       if (isRestricted) {
-        console.log('Restricted environment detected - prioritizing IndexedDB fallback sync');
+        logger.log('Restricted environment detected - prioritizing IndexedDB fallback sync');
         await setupFallbackSync();
       } else {
         // Attempt Periodic Sync as secondary mechanism
@@ -162,12 +163,12 @@ export const registerServiceWorker = async () => {
             await registration.periodicSync.register(syncTag, {
               minInterval: minIntervalMs,
             });
-            console.log(`Periodic sync registered (${frequencyMinutes}min): ${syncTag}`);
+            logger.log(`Periodic sync registered (${frequencyMinutes}min): ${syncTag}`);
             sessionStorage.setItem('__periodic_sync_active__', 'true');
             periodicSyncSuccess = true;
           } catch (error) {
             // Periodic sync failed; gracefully fall back to IndexedDB
-            console.log(`Periodic sync failed (${error.name}); falling back to IndexedDB polling`);
+            logger.log(`Periodic sync failed (${error.name}); falling back to IndexedDB polling`);
             periodicSyncSuccess = false;
           }
         }
@@ -190,7 +191,7 @@ export const registerServiceWorker = async () => {
 
         // Fallback sync completion
         if (event.data.type === 'FALLBACK_SYNC_COMPLETE') {
-          console.log('Fallback sync completed:', event.data.data);
+          logger.log('Fallback sync completed:', event.data.data);
           window.dispatchEvent(
             new CustomEvent('offlineQueueStatusUpdate', {
               detail: event.data.data,
@@ -201,11 +202,11 @@ export const registerServiceWorker = async () => {
 
       return registration;
     } catch (error) {
-      console.error('Service Worker registration failed:', error.message);
-      console.log('Immediately activating IndexedDB fallback polling');
+      logger.error('Service Worker registration failed:', error.message);
+      logger.log('Immediately activating IndexedDB fallback polling');
       // Immediate graceful fallback — no SW needed
       setupFallbackSync().catch(fallbackError => {
-        console.error('Fallback sync setup failed:', fallbackError.message);
+        logger.error('Fallback sync setup failed:', fallbackError.message);
       });
       return null;
     }

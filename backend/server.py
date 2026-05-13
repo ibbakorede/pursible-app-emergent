@@ -29,6 +29,9 @@ from services.kyc_service import KYCService
 from services.user_service import UserService
 from services.bank_service import BankVerificationService, BANK_CODES
 from services.seed_service import SeedDataService
+from services.withdrawal_service import WithdrawalService
+from services.swap_service import SwapService
+from services.deposit_service import DepositService
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -74,6 +77,9 @@ kyc_service = KYCService(db)
 user_service = UserService(db)
 bank_service = BankVerificationService(FLUTTERWAVE_SECRET_KEY)
 seed_service = SeedDataService(db)
+withdrawal_service = WithdrawalService(db, wallet_service, transaction_service)
+swap_service = SwapService(db, wallet_service, transaction_service, rate_service)
+deposit_service = DepositService(db)
 
 # API Base URLs
 FLW_BASE = "https://api.flutterwave.com/v3"
@@ -641,89 +647,36 @@ async def get_balance(user: dict = Depends(get_current_user)):
 
 @functions_router.post("/submitKYC")
 async def submit_kyc(data: dict, user: dict = Depends(get_current_user)):
-    """Submit KYC verification"""
+    """Submit KYC verification - uses KYCService"""
     try:
         kyc_data = data.get("kycData", {})
         
-        if not kyc_data.get("full_name", "").strip():
-            raise HTTPException(status_code=400, detail="Full name is required")
+        # Validate
+        validation = kyc_service.validate_kyc_data(kyc_data)
+        if not validation["valid"]:
+            raise HTTPException(status_code=400, detail=validation["errors"][0])
         
-        # Check for existing KYC record
-        existing = await db.kyc_records.find_one({"user_email": user["email"]})
+        # Auto-approve in test mode (no Dojah keys)
+        auto_approve = not DOJAH_API_KEY or not DOJAH_SECRET_KEY
         
-        kyc_payload = {
-            "user_email": user["email"],
-            "full_name": kyc_data.get("full_name"),
-            "date_of_birth": kyc_data.get("date_of_birth"),
-            "nationality": kyc_data.get("nationality"),
-            "address": kyc_data.get("address"),
-            "bvn": kyc_data.get("bvn"),
-            "nin": kyc_data.get("nin"),
-            "id_type": kyc_data.get("id_type"),
-            "id_number": kyc_data.get("id_number"),
-            "id_document_url": kyc_data.get("id_document_url"),
-            "selfie_url": kyc_data.get("selfie_url"),
-            "status": "in_review",
-            "updated_date": get_timestamp()
-        }
+        # Submit via service
+        result = await kyc_service.submit_kyc(user["email"], kyc_data, auto_approve)
         
-        # In test mode (no Dojah keys), auto-approve
-        if not DOJAH_API_KEY or not DOJAH_SECRET_KEY:
-            kyc_payload["status"] = "approved"
-            kyc_payload["timeline"] = [
-                {"status": "in_review", "timestamp": get_timestamp(), "note": "Submitted for verification"},
-                {"status": "approved", "timestamp": get_timestamp(), "note": "Auto-approved (test mode)"}
-            ]
-            
-            # Update user KYC status
-            await db.users.update_one(
-                {"email": user["email"]},
-                {"$set": {"kyc_status": "verified"}}
+        if result["approved"]:
+            # Update user status and notify
+            await kyc_service.update_user_kyc_status(user["email"], "verified")
+            await notification_service.create(
+                user["email"],
+                "Identity Verified",
+                "Your identity has been verified. You can now use all Pursible features.",
+                "kyc"
             )
-            
-            if existing:
-                await db.kyc_records.update_one({"id": existing["id"]}, {"$set": kyc_payload})
-            else:
-                kyc_payload["id"] = generate_id()
-                kyc_payload["created_date"] = get_timestamp()
-                await db.kyc_records.insert_one(kyc_payload)
-            
-            # Create notification
-            await db.notifications.insert_one({
-                "id": generate_id(),
-                "user_email": user["email"],
-                "title": "Identity Verified",
-                "message": "Your identity has been verified. You can now use all Pursible features.",
-                "type": "kyc",
-                "is_read": False,
-                "created_date": get_timestamp()
-            })
-            
-            return {
-                "success": True,
-                "approved": True,
-                "status": "approved",
-                "message": "Identity verified successfully (test mode)."
-            }
-        
-        # TODO: Implement actual Dojah verification
-        # For now, set to pending review
-        kyc_payload["timeline"] = [
-            {"status": "in_review", "timestamp": get_timestamp(), "note": "Submitted for verification"}
-        ]
-        
-        if existing:
-            await db.kyc_records.update_one({"id": existing["id"]}, {"$set": kyc_payload})
-        else:
-            kyc_payload["id"] = generate_id()
-            kyc_payload["created_date"] = get_timestamp()
-            await db.kyc_records.insert_one(kyc_payload)
         
         return {
             "success": True,
-            "approved": False,
-            "status": "in_review",
-            "message": "Your documents are being reviewed."
+            "approved": result["approved"],
+            "status": result["status"],
+            "message": "Identity verified successfully (test mode)." if result["approved"] else "Your documents are being reviewed."
         }
         
     except HTTPException:
@@ -944,51 +897,22 @@ async def swap_currency(data: SwapRequest, user: dict = Depends(get_current_user
 
 @functions_router.post("/depositFiat")
 async def deposit_fiat(data: dict, user: dict = Depends(get_current_user)):
-    """Get deposit instructions"""
+    """Get deposit instructions - uses DepositService"""
     try:
         # Check KYC
-        kyc = await db.kyc_records.find_one({"user_email": user["email"]})
-        if not kyc or kyc.get("status") != "approved":
-            return {
-                "success": False,
-                "kycBlocked": True,
-                "error": "Identity verification required",
-                "redirectTo": "/kyc"
-            }
+        kyc_check = await kyc_service.check_kyc_requirement(user["email"])
+        if kyc_check["blocked"]:
+            return kyc_check["response"]
         
         currency = data.get("currency", "").upper()
         
-        if currency == "NGN":
-            # Return virtual account details (demo)
-            return {
-                "success": True,
-                "currency": "NGN",
-                "provider": "flutterwave",
-                "depositDetails": {
-                    "bankName": "Wema Bank",
-                    "accountNumber": f"99{user['email'][:8].replace('@', '').replace('.', '')[:8].ljust(8, '0')}",
-                    "accountName": user.get("full_name") or user["email"],
-                    "instructions": "Transfer NGN from any Nigerian bank. Balance updates within minutes."
-                }
-            }
+        # Validate currency
+        validation = deposit_service.validate_currency(currency)
+        if not validation["valid"]:
+            raise HTTPException(status_code=400, detail=validation["error"])
         
-        if currency == "USD":
-            return {
-                "success": True,
-                "currency": "USD",
-                "provider": "bridge",
-                "depositDetails": {
-                    "bankName": "Bridge Bank",
-                    "accountNumber": "Demo Account",
-                    "routingNumber": "Demo Routing",
-                    "accountType": "checking",
-                    "paymentRail": "ACH / Wire",
-                    "reference": user["email"],
-                    "instructions": "Send USD via ACH or wire. Include your email as reference."
-                }
-            }
-        
-        raise HTTPException(status_code=400, detail=f"Unsupported currency: {currency}")
+        # Get deposit instructions
+        return await deposit_service.get_deposit_instructions(currency, user["email"])
         
     except HTTPException:
         raise

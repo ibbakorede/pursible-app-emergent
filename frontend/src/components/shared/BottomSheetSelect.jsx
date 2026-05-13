@@ -11,6 +11,10 @@ const SHEET_ANIMATE = { y: 0 };
 const SHEET_EXIT = { y: '100%' };
 const SHEET_TRANSITION = { type: 'spring', damping: 30, stiffness: 300 };
 
+// Style constants
+const SHEET_STYLE = { maxHeight: '75vh' };
+const LIST_STYLE = { maxHeight: 'calc(75vh - 140px)' };
+
 export default function BottomSheetSelect({
   open,
   onOpenChange,
@@ -88,7 +92,7 @@ export default function BottomSheetSelect({
               animate={SHEET_ANIMATE}
               exit={SHEET_EXIT}
               transition={SHEET_TRANSITION}
-              style={{ maxHeight: '75vh' }}
+              style={SHEET_STYLE}
             >
               {/* Handle bar */}
               <div className="flex justify-center pt-3 pb-2">
@@ -135,7 +139,7 @@ export default function BottomSheetSelect({
               <div 
                 ref={listRef}
                 className="overflow-y-auto overscroll-contain px-4 pb-6"
-                style={{ maxHeight: 'calc(75vh - 140px)' }}
+                style={LIST_STYLE}
               >
                 <div className="space-y-2">
                   {filteredOptions?.length === 0 ? (
