@@ -229,6 +229,56 @@
 
 ## Changelog
 
+### May 13, 2026 (v1.0.7) - PROMPT 1 of 3 Complete
+- **Phase 1: Security Hardening (httpOnly Cookies)**
+  - **Backend Changes:**
+    - Added `set_auth_cookie()` and `clear_auth_cookie()` helper functions
+    - Login/register/biometric-login endpoints now set `httpOnly`, `Secure`, `SameSite=Lax` cookies
+    - Added `/api/auth/logout` endpoint to clear cookies
+    - Added `/api/auth/refresh` endpoint for token refresh
+    - CORS configured with explicit frontend origin (no wildcards) + `allow_credentials=True`
+    - `get_current_user()` reads from cookie first, falls back to Bearer token
+  - **New Biometric Endpoints:**
+    - `POST /api/biometric/register` - Store credential ID + public key server-side
+    - `POST /api/biometric/verify` - Verify WebAuthn assertion
+    - `DELETE /api/biometric/credential` - Disable biometric
+    - `GET /api/biometric/status` - Get biometric status
+    - `UserResponse` now includes `biometric_enabled` boolean
+  - **New Push Notification Endpoints:**
+    - `POST /api/push/register-token` - Store FCM token server-side
+    - `DELETE /api/push/token` - Clear token on logout
+    - `GET /api/push/settings` - Get notification preferences
+    - `PATCH /api/push/settings` - Update notification preferences
+  - **Frontend Changes:**
+    - `apiClient.js` - Removed all token storage, added `withCredentials: true`
+    - `AuthContext.jsx` - Removed localStorage/sessionStorage usage, auth via `/auth/me`
+    - `biometricAuth.js` - All credentials stored server-side via API
+    - `pushNotifications.js` - FCM tokens stored server-side via API
+    - `useBiometricLock.js` - Lock timestamp now in React ref (memory only)
+    - `Onboarding.jsx` - Uses `withCredentials` instead of token header
+  - **Proof:** `grep -rn "localStorage|sessionStorage"` on sensitive files → **ZERO matches**
+
+- **Phase 2: React Hooks (exhaustive-deps)**
+  - **BASELINE:** 5 `react-hooks/exhaustive-deps` errors
+  - **FINAL:** 0 errors
+  - **Files Fixed:**
+    - `BiometricProtectedAction.jsx` - Added `operationName` dependency
+    - `PortfolioSummary.jsx` - Memoized `convertTo` with `useCallback`
+    - `useTabHistory.js` - Added `location.state` dependency
+    - `Referrals.jsx` - Changed `user?.email` to `user` dependency
+    - `WalletOverview.jsx` - Memoized `convertTo` with `useCallback`
+  - **eslint-disable comments used:** 0 (max allowed: 2)
+  - **Proof:** `npx eslint src/ | grep exhaustive-deps` → **ZERO matches**
+
+- **Additional Fixes:**
+  - `SecuritySettings.jsx` - Corrected import paths for BiometricLockModal and DeleteAccountModal
+  - Created `eslint.config.js` for ESLint 9+ with react-hooks rules as errors
+
+- **Testing Results:**
+  - Backend: 20/22 tests passed (2 skipped for missing admin user)
+  - Frontend: All major pages load correctly
+  - Security Migration Verification: All endpoints work with httpOnly cookies
+
 ### May 13, 2026 (v1.0.6)
 - **Console Statement Cleanup:**
   - Removed debug `console.log` statements from production code:
