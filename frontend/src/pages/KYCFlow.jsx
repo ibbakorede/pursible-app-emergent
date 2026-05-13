@@ -1,227 +1,130 @@
-import { useState, useEffect } from 'react';
+/**
+ * KYCFlow - KYC Verification Flow
+ * Refactored to use smaller, single-responsibility step components
+ */
+import { useState, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ArrowLeft, Shield, Camera, CheckCircle, Clock, XCircle, Loader2, FileText, Check } from 'lucide-react';
-import { Link, useNavigate } from 'react-router-dom';
-import LoadingSpinner from '@/components/shared/LoadingSpinner';
-import DocUpload from '@/components/kyc/DocUpload';
-import KYCProgressTracker from '@/components/kyc/KYCProgressTracker';
+import { useAuth } from '@/lib/AuthContext';
+import { useNavigate, Link } from 'react-router-dom';
 import { toast } from 'sonner';
+import { Button } from '@/components/ui/button';
+import { ArrowLeft, CheckCircle, AlertTriangle, XCircle } from 'lucide-react';
+import LoadingSpinner from '@/components/shared/LoadingSpinner';
 
-const STEPS = ['Introduction', 'Personal Details', 'Identity Document', 'Selfie'];
+// Import step components
+import {
+  KYCProgressTracker,
+  KYCIntroStep,
+  KYCPersonalStep,
+  KYCDocumentStep,
+  KYCSelfieStep,
+  validatePersonalInfo,
+  validateIdDocument,
+  validateSelfie
+} from '@/components/kyc';
+
+const INITIAL_FORM = {
+  full_name: '',
+  date_of_birth: '',
+  nationality: '',
+  address: '',
+  bvn: '',
+  nin: '',
+  id_type: '',
+  id_number: '',
+  id_document_url: '',
+  selfie_url: ''
+};
 
 export default function KYCFlow() {
-  const [user, setUser] = useState(null);
-  const [step, setStep] = useState(0);
-  const [form, setForm] = useState({
-    full_name: '', date_of_birth: '', nationality: '', address: '',
-    bvn: '', nin: '',
-    id_type: '', id_number: '', id_document_url: '', selfie_url: '',
-  });
-  const [verificationState, setVerificationState] = useState('idle'); // idle | processing | approved | rejected
-  const [rejectionReason, setRejectionReason] = useState('');
-  const [errors, setErrors] = useState({});
-  const queryClient = useQueryClient();
+  const { user, isLoadingAuth } = useAuth();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const [step, setStep] = useState(0);
+  const [form, setForm] = useState(INITIAL_FORM);
+  const [errors, setErrors] = useState({});
 
-  useEffect(() => {
-    base44.auth.me().then(u => { setUser(u); setForm(f => ({ ...f, full_name: u?.full_name || '' })); });
-  }, []);
-
-  const { data: kyc = [], isLoading } = useQuery({
-    queryKey: ['kyc'],
-    queryFn: () => base44.entities.KYCRecord.filter({ user_email: user?.email }),
+  // Fetch existing KYC record
+  const { data: kycRecord, isLoading: loadingKYC } = useQuery({
+    queryKey: ['kyc', user?.email],
+    queryFn: async () => {
+      const records = await base44.entities.KYCRecord.filter({ user_email: user?.email });
+      return records?.[0] || null;
+    },
     enabled: !!user?.email,
   });
 
-  const kycRecord = kyc[0];
+  // Handle form field changes
+  const handleFormChange = useCallback((field, value) => {
+    setForm(prev => ({ ...prev, [field]: value }));
+    setErrors(prev => ({ ...prev, [field]: undefined }));
+  }, []);
 
-  useEffect(() => {
-    if (verificationState !== 'approved') return;
-    const timer = setTimeout(() => navigate('/'), 3000);
-    return () => clearTimeout(timer);
-  }, [verificationState, navigate]);
+  // Validate current step
+  const validateStep = useCallback((currentStep) => {
+    let validation = { valid: true, errors: {} };
 
+    switch (currentStep) {
+      case 1:
+        validation = validatePersonalInfo(form);
+        break;
+      case 2:
+        validation = validateIdDocument(form);
+        break;
+      case 3:
+        validation = validateSelfie(form);
+        break;
+      default:
+        return true;
+    }
+
+    if (!validation.valid) {
+      setErrors(validation.errors);
+      return false;
+    }
+    return true;
+  }, [form]);
+
+  // Submit KYC mutation
   const submitKYC = useMutation({
     mutationFn: async () => {
-      setVerificationState('processing');
-      return base44.functions.invoke('submitKYC', { kycData: form });
+      const result = await base44.functions.invoke('submitKYC', form);
+      if (!result.success) throw new Error(result.error || 'KYC submission failed');
+      return result;
     },
-    onSuccess: (result) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['kyc'] });
-      if (result?.approved) {
-        setVerificationState('approved');
-      } else {
-        setRejectionReason(result?.rejectionReason || 'Verification was not successful. Please review your documents and try again.');
-        setVerificationState('rejected');
-      }
+      toast.success('Verification submitted successfully!');
+      navigate('/profile');
     },
     onError: (err) => {
-      setRejectionReason(err?.message || 'Verification could not be completed. Please try again or contact support.');
-      setVerificationState('rejected');
+      toast.error(err.message || 'Failed to submit verification');
     },
   });
 
-  function validateStep(s) {
-    console.log('[KYCFlow] validateStep called — s:', s, '| form:', JSON.stringify(form));
-    const e = {};
-    if (s === 1) {
-      // (a) full_name
-      const name = form.full_name.trim();
-      console.log('[KYCFlow] step1 full_name check — value:', JSON.stringify(name));
-      if (!name) {
-        e.full_name = 'Full name is required.';
-        console.log('[KYCFlow] step1 full_name FAIL — empty');
-      } else if (name.split(/\s+/).length < 2) {
-        e.full_name = 'Please enter your full name (first and last name).';
-        console.log('[KYCFlow] step1 full_name FAIL — less than 2 words:', name.split(/\s+/));
-      } else if (/[0-9@#$%^&*()+={}|<>?]/.test(name)) {
-        e.full_name = 'Name must not contain numbers or special characters.';
-        console.log('[KYCFlow] step1 full_name FAIL — special chars in:', name);
-      } else {
-        console.log('[KYCFlow] step1 full_name PASS');
-      }
+  // Navigation handlers
+  const handleBack = useCallback(() => {
+    setStep(s => Math.max(0, s - 1));
+    setErrors({});
+  }, []);
 
-      // (b) date_of_birth
-      console.log('[KYCFlow] step1 date_of_birth check — value:', JSON.stringify(form.date_of_birth));
-      if (!form.date_of_birth) {
-        e.date_of_birth = 'Date of birth is required.';
-        console.log('[KYCFlow] step1 date_of_birth FAIL — empty');
-      } else {
-        // Parse as local date to avoid UTC timezone offset issues
-        const [y, m, d] = form.date_of_birth.split('-').map(Number);
-        const dob = new Date(y, m - 1, d);
-        console.log('[KYCFlow] step1 date_of_birth parsed — dob:', dob, '| isNaN:', isNaN(dob.getTime()));
-        if (isNaN(dob.getTime())) {
-          e.date_of_birth = 'Please enter a valid date.';
-          console.log('[KYCFlow] step1 date_of_birth FAIL — invalid date');
-        } else {
-          const today = new Date();
-          let age = today.getFullYear() - dob.getFullYear();
-          const hasHadBirthdayThisYear =
-            today.getMonth() > dob.getMonth() ||
-            (today.getMonth() === dob.getMonth() && today.getDate() >= dob.getDate());
-          if (!hasHadBirthdayThisYear) age -= 1;
-          console.log('[KYCFlow] step1 date_of_birth age:', age);
-          if (age < 18) {
-            e.date_of_birth = 'You must be at least 18 years old.';
-            console.log('[KYCFlow] step1 date_of_birth FAIL — under 18');
-          } else {
-            console.log('[KYCFlow] step1 date_of_birth PASS');
-          }
-        }
-      }
-
-      // (c) BVN — optional, only validate if non-empty
-      console.log('[KYCFlow] step1 bvn check — value:', JSON.stringify(form.bvn), '| empty:', !form.bvn);
-      if (form.bvn && !/^\d{11}$/.test(form.bvn.trim())) {
-        e.bvn = 'BVN must be exactly 11 digits.';
-        console.log('[KYCFlow] step1 bvn FAIL — not 11 digits');
-      } else {
-        console.log('[KYCFlow] step1 bvn PASS (empty or valid)');
-      }
-
-      // (d) NIN — optional, only validate if non-empty
-      console.log('[KYCFlow] step1 nin check — value:', JSON.stringify(form.nin), '| empty:', !form.nin);
-      if (form.nin && !/^\d{11}$/.test(form.nin.trim())) {
-        e.nin = 'NIN must be exactly 11 digits.';
-        console.log('[KYCFlow] step1 nin FAIL — not 11 digits');
-      } else {
-        console.log('[KYCFlow] step1 nin PASS (empty or valid)');
-      }
+  const handleContinue = useCallback(() => {
+    if (!validateStep(step)) return;
+    
+    if (step < 3) {
+      setStep(s => s + 1);
+    } else {
+      submitKYC.mutate();
     }
-    if (s === 2) {
-      if (!form.id_type) e.id_type = 'Please select an ID type.';
-      if (!form.id_number.trim()) e.id_number = 'ID number is required.';
-      // TODO: Restore document upload requirement when file hosting is configured
-      // if (!form.id_document_url) e.id_document_url = 'Please upload your ID document.';
-    }
-    if (s === 3) {
-      if (!form.selfie_url) e.selfie_url = 'Please upload a selfie photo.';
-    }
-    setErrors(e);
-    return Object.keys(e).length === 0;
+  }, [step, validateStep, submitKYC]);
+
+  // Loading state
+  if (isLoadingAuth || (loadingKYC && !!user?.email)) {
+    return <LoadingSpinner />;
   }
 
-  if (isLoading) return <LoadingSpinner />;
-
-  // ── Dojah verification state screens ────────────────────────────────────────
-
-  if (verificationState === 'processing') {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="max-w-sm mx-auto px-4 text-center space-y-6">
-          <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto">
-            <Loader2 className="w-8 h-8 text-primary animate-spin" />
-          </div>
-          <div>
-            <h2 className="text-xl font-bold mb-2">Verifying your identity</h2>
-            <p className="text-sm text-muted-foreground">We're checking your documents with our verification partner. This usually takes a few seconds.</p>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (verificationState === 'approved') {
-    return (
-      <div className="min-h-screen bg-background">
-        <div className="max-w-sm mx-auto px-4 pt-6 pb-10 space-y-6">
-          <div className="flex items-center gap-3">
-            <h1 className="text-xl font-bold">Verification Complete</h1>
-          </div>
-          <div className="bg-card border border-border rounded-2xl p-8 text-center space-y-4">
-            <div className="w-16 h-16 rounded-2xl bg-green-100 flex items-center justify-center mx-auto">
-              <CheckCircle className="w-8 h-8 text-green-600" />
-            </div>
-            <div>
-              <h2 className="text-lg font-bold text-green-700 mb-1">Identity Verified</h2>
-              <p className="text-sm text-muted-foreground">Your identity has been verified successfully. Redirecting you to the home screen in a moment…</p>
-            </div>
-          </div>
-          <Link to="/" className="block">
-            <Button className="rounded-xl w-full h-12 text-base">Go to Home</Button>
-          </Link>
-        </div>
-      </div>
-    );
-  }
-
-  if (verificationState === 'rejected') {
-    return (
-      <div className="min-h-screen bg-background">
-        <div className="max-w-sm mx-auto px-4 pt-6 pb-10 space-y-6">
-          <div className="flex items-center gap-3">
-            <h1 className="text-xl font-bold">Verification Unsuccessful</h1>
-          </div>
-          <div className="bg-card border border-border rounded-2xl p-6 space-y-4">
-            <div className="w-14 h-14 rounded-2xl bg-red-100 flex items-center justify-center mx-auto">
-              <XCircle className="w-7 h-7 text-red-600" />
-            </div>
-            <p className="text-sm font-semibold text-center">We could not verify your identity</p>
-            {rejectionReason && (
-              <div className="bg-red-50 border border-red-200 rounded-xl p-3.5 text-xs text-red-700 leading-relaxed">
-                            {rejectionReason.split(' | ').map((msg, i) => (
-                  <p key={`rejection-${i}-${msg.slice(0, 10)}`} className={i > 0 ? 'mt-1.5' : ''}>{msg}</p>
-                ))}
-              </div>
-            )}
-          </div>
-          <Button
-            className="w-full rounded-xl h-12 text-base"
-            onClick={() => { setVerificationState('idle'); setRejectionReason(''); setStep(1); }}
-          >
-            Try Again
-          </Button>
-        </div>
-      </div>
-    );
-  }
-
-  // Status screens
+  // Already approved
   if (kycRecord?.status === 'approved') {
     return (
       <div className="min-h-screen bg-background">
@@ -230,20 +133,31 @@ export default function KYCFlow() {
             <Link to="/profile" className="p-2 rounded-xl bg-card border border-border hover:bg-muted">
               <ArrowLeft className="w-5 h-5" />
             </Link>
-            <h1 className="text-xl font-bold">Verification Complete</h1>
+            <h1 className="text-xl font-bold">Identity Verified</h1>
           </div>
 
-          <KYCProgressTracker kycRecord={kycRecord} rejectionDetails={[]} />
+          <div className="text-center py-8 space-y-4">
+            <div className="w-20 h-20 rounded-full bg-emerald-100 flex items-center justify-center mx-auto">
+              <CheckCircle className="w-10 h-10 text-emerald-600" />
+            </div>
+            <div>
+              <p className="font-semibold text-lg">You're all set!</p>
+              <p className="text-sm text-muted-foreground mt-1">
+                Your identity has been verified. You have full access to all features.
+              </p>
+            </div>
+          </div>
 
-          <Link to="/" className="block">
-            <Button className="rounded-xl w-full h-12 text-base">Back to Home</Button>
+          <Link to="/">
+            <Button variant="outline" className="rounded-xl w-full">Back to Home</Button>
           </Link>
         </div>
       </div>
     );
   }
 
-  if (kycRecord?.status === 'pending' || kycRecord?.status === 'in_review') {
+  // In review
+  if (kycRecord?.status === 'in_review') {
     return (
       <div className="min-h-screen bg-background">
         <div className="max-w-sm mx-auto px-4 pt-6 pb-10 space-y-6">
@@ -254,9 +168,21 @@ export default function KYCFlow() {
             <h1 className="text-xl font-bold">Verification in Progress</h1>
           </div>
 
+          <div className="text-center py-8 space-y-4">
+            <div className="w-20 h-20 rounded-full bg-amber-100 flex items-center justify-center mx-auto">
+              <AlertTriangle className="w-10 h-10 text-amber-600" />
+            </div>
+            <div>
+              <p className="font-semibold text-lg">Under Review</p>
+              <p className="text-sm text-muted-foreground mt-1">
+                Your verification is being processed. This usually takes 1-2 business days.
+              </p>
+            </div>
+          </div>
+
           <KYCProgressTracker kycRecord={kycRecord} rejectionDetails={[]} />
 
-          <Link to="/" className="block">
+          <Link to="/">
             <Button variant="outline" className="rounded-xl w-full">Back to Home</Button>
           </Link>
         </div>
@@ -264,8 +190,8 @@ export default function KYCFlow() {
     );
   }
 
+  // Rejected
   if (kycRecord?.status === 'rejected') {
-    // Parse rejection details from rejection_reason to determine which steps failed
     const rejectionDetails = [];
     const reason = kycRecord.rejection_reason || '';
     if (reason.includes('personal') || reason.includes('details')) rejectionDetails.push('personal');
@@ -282,9 +208,24 @@ export default function KYCFlow() {
             <h1 className="text-xl font-bold">Verification Failed</h1>
           </div>
 
+          <div className="text-center py-8 space-y-4">
+            <div className="w-20 h-20 rounded-full bg-red-100 flex items-center justify-center mx-auto">
+              <XCircle className="w-10 h-10 text-red-600" />
+            </div>
+            <div>
+              <p className="font-semibold text-lg">Verification Unsuccessful</p>
+              <p className="text-sm text-muted-foreground mt-1">
+                {kycRecord.rejection_reason || 'Please re-submit your documents.'}
+              </p>
+            </div>
+          </div>
+
           <KYCProgressTracker kycRecord={kycRecord} rejectionDetails={rejectionDetails} />
 
-          <Button className="w-full rounded-xl h-12 text-base" onClick={() => setStep(1)}>
+          <Button 
+            className="w-full rounded-xl h-12 text-base" 
+            onClick={() => setStep(1)}
+          >
             Re-submit Documents
           </Button>
         </div>
@@ -292,174 +233,48 @@ export default function KYCFlow() {
     );
   }
 
-  // Progress indicator
-  const progressSteps = STEPS.slice(1);
-
+  // Main KYC flow steps
   return (
     <div className="min-h-screen bg-background">
       <div className="max-w-lg mx-auto px-4 pt-6 pb-10">
-
-        {/* Step 0 — intro (Step 1 of 4) */}
         {step === 0 && (
-          <div className="space-y-6">
-            <div className="flex items-center gap-3">
-              <Link to="/profile" className="p-2 rounded-xl bg-card border border-border hover:bg-muted"><ArrowLeft className="w-5 h-5" /></Link>
-              <h1 className="text-xl font-bold">Verify Your Identity</h1>
-            </div>
-            <div className="bg-card border border-border rounded-2xl p-5">
-              <p className="text-sm text-muted-foreground leading-relaxed">
-                To comply with financial regulations and keep your account secure, we need to verify your identity before you can send or receive funds.
-              </p>
-            </div>
-            <div className="space-y-3">
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide px-1">What you'll need</p>
-              {[
-                { icon: Shield,   label: 'Government-issued ID',  desc: 'International Passport, Driver\'s Licence, or Voter\'s Card' },
-                { icon: FileText, label: 'BVN or NIN',            desc: 'Bank Verification Number or National Identity Number' },
-                { icon: Camera,   label: 'A clear selfie',        desc: 'A photo of your face in good lighting' },
-              ].map(({ icon: Icon, label, desc }) => (
-                <div key={label} className="flex items-center gap-4 bg-card border border-border rounded-2xl p-4">
-                  <div className="w-9 h-9 rounded-full bg-primary/10 text-primary flex items-center justify-center flex-shrink-0">
-                    <Icon className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold">{label}</p>
-                    <p className="text-xs text-muted-foreground">{desc}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-            <Button className="w-full rounded-xl h-12 text-base" onClick={() => setStep(1)}>Get Started</Button>
-          </div>
+          <KYCIntroStep onStart={() => setStep(1)} />
         )}
 
-        {/* Steps 1–3 with progress bar */}
-        {step > 0 && (
-          <div className="space-y-6">
-            {/* Header */}
-            <div className="flex items-center gap-3">
-              <button onClick={() => { setStep(s => s - 1); setErrors({}); }} className="p-2 rounded-xl bg-card border border-border hover:bg-muted">
-                <ArrowLeft className="w-5 h-5" />
-              </button>
-              <div className="flex-1">
-                <h1 className="text-xl font-bold">{STEPS[step]}</h1>
-                <p className="text-xs text-muted-foreground">Step {step + 1} of 4</p>
-              </div>
-            </div>
+        {step === 1 && (
+          <KYCPersonalStep
+            form={form}
+            errors={errors}
+            onFormChange={handleFormChange}
+            onBack={handleBack}
+            onContinue={handleContinue}
+            isSubmitting={false}
+            currentStep={step}
+          />
+        )}
 
-            {/* Progress */}
-            <div className="flex gap-1.5">
-              {progressSteps.map((stepName, i) => (
-                <div key={`progress-step-${stepName}`} className={`flex-1 h-1.5 rounded-full transition-all ${i < step ? 'bg-primary' : 'bg-muted'}`} />
-              ))}
-            </div>
+        {step === 2 && (
+          <KYCDocumentStep
+            form={form}
+            errors={errors}
+            onFormChange={handleFormChange}
+            onBack={handleBack}
+            onContinue={handleContinue}
+            isSubmitting={false}
+            currentStep={step}
+          />
+        )}
 
-            {/* Step 1 — personal info */}
-            {step === 1 && (
-              <div className="bg-card border border-border rounded-2xl overflow-hidden">
-                <div className="px-5 py-4 bg-muted/30 border-b border-border">
-                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Personal Information</p>
-                </div>
-                <div className="p-5 space-y-4">
-                  {[
-                    { key: 'full_name', label: 'Full Legal Name', placeholder: 'As on government ID', type: 'text' },
-                    { key: 'date_of_birth', label: 'Date of Birth', placeholder: '', type: 'date' },
-                    { key: 'nationality', label: 'Nationality', placeholder: 'e.g. Nigerian', type: 'text' },
-                    { key: 'address', label: 'Residential Address', placeholder: 'Full address', type: 'text' },
-                  ].map(({ key, label, placeholder, type }) => (
-                    <div key={key}>
-                      <label className="text-xs font-medium text-muted-foreground mb-1.5 block">{label}</label>
-                      <Input type={type} value={form[key]} onChange={e => { setForm({ ...form, [key]: e.target.value }); setErrors(er => ({ ...er, [key]: undefined })); }} className={`rounded-xl ${errors[key] ? 'border-destructive' : ''}`} placeholder={placeholder} style={type === 'date' ? { colorScheme: 'light', backgroundColor: 'white', color: '#1a1a0e' } : undefined} />
-                      {errors[key] && <p className="text-xs text-destructive mt-1">{errors[key]}</p>}
-                    </div>
-                  ))}
-                  <div>
-                    <label className="text-xs font-medium text-muted-foreground mb-1.5 block">BVN <span className="text-muted-foreground/60">(optional)</span></label>
-                    <Input value={form.bvn} onChange={e => { setForm({ ...form, bvn: e.target.value }); setErrors(er => ({ ...er, bvn: undefined })); }} className={`rounded-xl ${errors.bvn ? 'border-destructive' : ''}`} placeholder="11-digit BVN" maxLength={11} />
-                    {errors.bvn && <p className="text-xs text-destructive mt-1">{errors.bvn}</p>}
-                  </div>
-                  <div>
-                    <label className="text-xs font-medium text-muted-foreground mb-1.5 block">NIN <span className="text-muted-foreground/60">(optional)</span></label>
-                    <Input value={form.nin} onChange={e => { setForm({ ...form, nin: e.target.value }); setErrors(er => ({ ...er, nin: undefined })); }} className={`rounded-xl ${errors.nin ? 'border-destructive' : ''}`} placeholder="11-digit NIN" maxLength={11} />
-                    {errors.nin && <p className="text-xs text-destructive mt-1">{errors.nin}</p>}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Step 2 — ID upload */}
-            {step === 2 && (
-              <div className="bg-card border border-border rounded-2xl overflow-hidden">
-                <div className="px-5 py-4 bg-muted/30 border-b border-border">
-                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Identity Document</p>
-                </div>
-                <div className="p-5 space-y-4">
-                  <div>
-                    <label className="text-xs font-medium text-muted-foreground mb-1.5 block">ID Type</label>
-                    <Select value={form.id_type} onValueChange={v => { setForm({ ...form, id_type: v }); setErrors(er => ({ ...er, id_type: undefined })); }}>
-                      <SelectTrigger className={`rounded-xl ${errors.id_type ? 'border-destructive' : ''}`}><SelectValue placeholder="Select ID type" /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="International Passport">International Passport</SelectItem>
-                        <SelectItem value="Drivers Licence">Driver's Licence</SelectItem>
-                        <SelectItem value="Voters Card">Voter's Card</SelectItem>
-                        <SelectItem value="NIN">NIN</SelectItem>
-                        <SelectItem value="BVN">BVN</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    {errors.id_type && <p className="text-xs text-destructive mt-1">{errors.id_type}</p>}
-                  </div>
-                  <div>
-                    <label className="text-xs font-medium text-muted-foreground mb-1.5 block">ID Number</label>
-                    <Input value={form.id_number} onChange={e => { setForm({ ...form, id_number: e.target.value }); setErrors(er => ({ ...er, id_number: undefined })); }} className={`rounded-xl ${errors.id_number ? 'border-destructive' : ''}`} />
-                    {errors.id_number && <p className="text-xs text-destructive mt-1">{errors.id_number}</p>}
-                  </div>
-                  <DocUpload label="Upload ID Document" hint="Clear photo or scan of your government-issued ID" icon={FileText}
-                    value={form.id_document_url} onChange={url => { setForm(f => ({ ...f, id_document_url: url })); setErrors(er => ({ ...er, id_document_url: undefined })); }} accept="image/*,.pdf" />
-                  {errors.id_document_url && <p className="text-xs text-destructive mt-1">{errors.id_document_url}</p>}
-                </div>
-              </div>
-            )}
-
-            {/* Step 3 — selfie */}
-            {step === 3 && (
-              <div className="bg-card border border-border rounded-2xl overflow-hidden">
-                <div className="px-5 py-4 bg-muted/30 border-b border-border">
-                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Selfie Verification</p>
-                </div>
-                <div className="p-5 space-y-4">
-                  <div className="flex items-start gap-3 bg-blue-50 border border-blue-200 rounded-xl p-3.5">
-                    <Camera className="w-4 h-4 text-blue-600 flex-shrink-0 mt-0.5" />
-                    <p className="text-xs text-blue-700">Take a clear selfie holding your ID document next to your face in good lighting.</p>
-                  </div>
-                  <DocUpload hint="Selfie with your ID visible" icon={Camera}
-                    value={form.selfie_url} onChange={url => {
-                      // TODO: Remove placeholder when file hosting is configured
-                      setForm(f => ({ ...f, selfie_url: url || 'test-mode-selfie' }));
-                      setErrors(er => ({ ...er, selfie_url: undefined }));
-                    }} accept="image/*" capture="user" />
-                  {errors.selfie_url && <p className="text-xs text-destructive mt-1">{errors.selfie_url}</p>}
-                </div>
-              </div>
-            )}
-
-            <Button
-              className="w-full rounded-xl h-12 text-base"
-              disabled={submitKYC.isPending}
-              onClick={() => {
-                try {
-                  console.log('[KYCFlow] Continue clicked, step=', step);
-                  if (!validateStep(step)) { console.log('[KYCFlow] Validation failed, errors set'); return; }
-                  console.log('[KYCFlow] Validation passed, advancing');
-                  if (step < 3) { setStep(s => s + 1); } else { submitKYC.mutate(); }
-                } catch (err) {
-                  console.error('[KYCFlow] Continue handler error:', err);
-                  toast.error('Something went wrong. Please try again.');
-                }
-              }}
-            >
-              {submitKYC.isPending ? <><Loader2 className="w-4 h-4 animate-spin mr-2" /> Submitting...</> : step < 3 ? 'Continue' : 'Submit Verification'}
-            </Button>
-          </div>
+        {step === 3 && (
+          <KYCSelfieStep
+            form={form}
+            errors={errors}
+            onFormChange={handleFormChange}
+            onBack={handleBack}
+            onSubmit={handleContinue}
+            isSubmitting={submitKYC.isPending}
+            currentStep={step}
+          />
         )}
       </div>
     </div>

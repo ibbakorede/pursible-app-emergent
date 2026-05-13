@@ -229,6 +229,28 @@
 
 ## Changelog
 
+### May 13, 2026 (v1.0.5)
+- **Large Component Splitting Complete:**
+  - **ConvertFunds.jsx** (574 → 150 lines):
+    - `CurrencyPicker.jsx` - Currency selection with balances
+    - `ConversionInput.jsx` - Main conversion form
+    - `ConversionConfirm.jsx` - Review and confirm step
+    - `ConversionSuccess.jsx` - Success confirmation
+    - `convertConstants.js` - Shared utilities
+  - **KYCFlow.jsx** (467 → 200 lines):
+    - `KYCIntroStep.jsx` - Introduction and requirements
+    - `KYCPersonalStep.jsx` - Personal info form
+    - `KYCDocumentStep.jsx` - ID document upload
+    - `KYCSelfieStep.jsx` - Selfie verification
+    - `kycConstants.js` - Validation utilities
+  - **SecuritySettings.jsx** (409 → 175 lines):
+    - `BiometricSection.jsx` - Biometric toggles
+    - `TransactionPinModal.jsx` - PIN management
+    - `ChangePasswordModal.jsx` - Password change
+    - `securityConstants.js` - Validation utilities
+- **Total Lines Reduced:** ~1,450 lines → ~525 lines (64% reduction)
+- **All linting passed:** 0 errors across all new components
+
 ### May 13, 2026 (v1.0.4)
 - **Backend Complexity Refactoring:**
   - Created `/app/backend/services/` module with single-responsibility services:
