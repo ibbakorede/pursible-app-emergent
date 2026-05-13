@@ -8,9 +8,9 @@ import os
 
 BASE_URL = os.environ.get('VITE_BACKEND_URL', 'https://backend-api-hub-1.preview.emergentagent.com')
 
-# Test credentials
-TEST_EMAIL = "testprompt4@pursible.com"
-TEST_PASSWORD = "Test123!"
+# Test credentials from environment variables
+TEST_EMAIL = os.environ.get('TEST_USER_EMAIL', 'testprompt4@pursible.com')
+TEST_PASSWORD = os.environ.get('TEST_USER_PASSWORD', 'Test123!')
 
 
 class TestHealthAndBasicAPIs:

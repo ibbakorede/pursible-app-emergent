@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Fingerprint, Shield } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/lib/AuthContext';
+import logger from '@/lib/logger';
 import {
   isBiometricAvailable,
   isBiometricEnabled,
@@ -19,11 +20,13 @@ import {
 } from '@/lib/pushNotifications';
 
 // Use sessionStorage for prompt tracking (non-persistent, session-scoped)
+// NOTE: Only stores non-sensitive boolean flags, NOT user credentials or tokens
 const BIOMETRIC_PROMPT_KEY = 'pursible_biometric_prompt_seen';
 
 /**
- * Secure prompt storage utilities
- * Uses sessionStorage for session-scoped tracking
+ * Prompt tracking utilities using sessionStorage
+ * IMPORTANT: Only stores non-sensitive UI state (prompt seen flags)
+ * Sensitive data (tokens, credentials) use httpOnly cookies, NOT sessionStorage
  */
 const promptStorage = {
   hasSeen: (key) => sessionStorage.getItem(key) === 'true',

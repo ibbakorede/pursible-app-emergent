@@ -2,7 +2,15 @@
 Withdrawal Service - Handles withdrawal operations
 """
 from typing import Dict, Any
-from datetime import datetime, timezone
+from dataclasses import dataclass
+
+
+@dataclass
+class WithdrawalContext:
+    """Groups withdrawal operation dependencies"""
+    wallet_service: Any
+    transaction_service: Any
+    notification_service: Any
 
 
 class WithdrawalService:
@@ -28,8 +36,8 @@ class WithdrawalService:
         return {"sufficient": True, "available": available, "wallet_id": wallet.get("id")}
     
     async def process_full_withdrawal(
-        self, user_email: str, currency: str, amount: float, destination: Dict[str, Any],
-        wallet_service, transaction_service, notification_service
+        self, user_email: str, currency: str, amount: float,
+        destination: Dict[str, Any], ctx: WithdrawalContext
     ) -> Dict[str, Any]:
         """Full withdrawal flow: validate, debit, create tx, notify"""
         from services.transaction_service import TransactionConfig
@@ -44,14 +52,14 @@ class WithdrawalService:
             return {"success": False, "error": balance_check["error"]}
         
         # Debit wallet
-        await wallet_service.update_balance(
+        await ctx.wallet_service.update_balance(
             balance_check["wallet_id"],
             set_available=balance_check["available"] - (amount + fee),
             set_pending=0
         )
         
         # Create transaction
-        reference_id = transaction_service.generate_reference("WD", currency)
+        reference_id = ctx.transaction_service.generate_reference("WD", currency)
         tx_config = TransactionConfig(
             user_email=user_email, tx_type="withdrawal",
             from_currency=currency, to_currency=currency,
@@ -59,14 +67,19 @@ class WithdrawalService:
             status="processing", provider="flutterwave" if currency == "NGN" else "manual",
             description=f"{currency} withdrawal", reference_id=reference_id
         )
-        tx = await transaction_service.create_transaction(tx_config)
+        tx = await ctx.transaction_service.create_transaction(tx_config)
         
         # Notify
         notif = NotificationTemplates.withdrawal_initiated(amount, currency)
-        await notification_service.create_transaction_notification(user_email, notif["title"], notif["message"], tx["id"])
+        await ctx.notification_service.create_transaction_notification(
+            user_email, notif["title"], notif["message"], tx["id"]
+        )
         
         return {
             "success": True,
-            "transaction": {"id": tx["id"], "referenceId": reference_id, "status": "processing", "amount": amount, "currency": currency, "fee": fee},
+            "transaction": {
+                "id": tx["id"], "referenceId": reference_id, "status": "processing",
+                "amount": amount, "currency": currency, "fee": fee
+            },
             "message": "Withdrawal initiated successfully"
         }

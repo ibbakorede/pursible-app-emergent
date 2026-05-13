@@ -155,7 +155,7 @@ export default function SecurityScore({ user, kycStatus, bankAccounts = [] }) {
 
       {/* Factors list */}
       <div className="divide-y divide-border">
-        {factorsStatus.map(factor => {
+        {factorsStatus.map((factor) => {
           const Icon = factor.icon;
           const content = (
             <div className="flex items-center gap-3.5 px-4 py-3.5">

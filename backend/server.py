@@ -708,19 +708,19 @@ async def verify_bank_account(data: BankVerifyRequest, user: dict = Depends(get_
 @functions_router.post("/withdraw")
 async def withdraw(data: WithdrawRequest, user: dict = Depends(get_current_user)):
     """Process withdrawal - thin handler delegating to WithdrawalService"""
+    from services.withdrawal_service import WithdrawalContext
     try:
         kyc_check = await kyc_service.check_kyc_requirement(user["email"])
         if kyc_check["blocked"]:
             return kyc_check["response"]
         
+        ctx = WithdrawalContext(wallet_service, transaction_service, notification_service)
         result = await withdrawal_service.process_full_withdrawal(
             user_email=user["email"],
             currency=data.currency,
             amount=data.amount,
             destination=data.destination,
-            wallet_service=wallet_service,
-            transaction_service=transaction_service,
-            notification_service=notification_service
+            ctx=ctx
         )
         
         if not result["success"]:
@@ -736,20 +736,15 @@ async def withdraw(data: WithdrawRequest, user: dict = Depends(get_current_user)
 @functions_router.post("/swapCurrency")
 async def swap_currency(data: SwapRequest, user: dict = Depends(get_current_user)):
     """Swap between currencies - thin handler delegating to SwapService"""
+    from services.swap_service import SwapRequest as SwapReq, SwapContext
     try:
         kyc_check = await kyc_service.check_kyc_requirement(user["email"])
         if kyc_check["blocked"]:
             return kyc_check["response"]
         
-        result = await swap_service.process_full_swap(
-            user_email=user["email"],
-            from_currency=data.fromCurrency,
-            to_currency=data.toCurrency,
-            amount=data.amount,
-            confirmed=data.confirmed,
-            wallet_service=wallet_service,
-            notification_service=notification_service
-        )
+        req = SwapReq(user["email"], data.fromCurrency, data.toCurrency, data.amount, data.confirmed)
+        ctx = SwapContext(wallet_service, notification_service)
+        result = await swap_service.process_full_swap(req, ctx)
         
         if not result["success"]:
             raise HTTPException(status_code=400, detail=result["error"])

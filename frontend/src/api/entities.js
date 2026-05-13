@@ -18,8 +18,6 @@
  *   (all other fields already existed)
  *
  * Balance (new)
- */
-import { logger } from '../lib/logger';
  *   - user_email:   String   — lookup key, matches Base44 auth email
  *   - usd:          Number   — USD balance
  *   - usdc:         Number   — USDC balance
@@ -38,6 +36,8 @@ import { logger } from '../lib/logger';
  *   - user_email: String
  *   - status:     "pending" | "approved" | "rejected" | "in_review"
  */
+
+import { logger } from '../lib/logger';
 
 import { base44 } from './base44Client';
 
