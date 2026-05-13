@@ -229,6 +229,29 @@
 
 ## Changelog
 
+### May 13, 2026 (v1.0.4)
+- **Backend Complexity Refactoring:**
+  - Created `/app/backend/services/` module with single-responsibility services:
+    - `WalletService` - Wallet CRUD, balance operations, credit/debit
+    - `TransactionService` - Transaction creation, status updates, conversion rates
+    - `NotificationService` - Notification creation, templates, user preferences
+    - `KYCService` - KYC submission, validation, approval/rejection
+  - Refactored `swap_currency()` from 161 lines to ~75 lines using services
+  - Refactored `withdraw()` from 121 lines to ~70 lines using services
+  - Refactored `flutterwave_webhook()` from 129 lines to separate handlers:
+    - `_handle_deposit_webhook()`
+    - `_handle_withdrawal_success_webhook()`
+    - `_handle_withdrawal_failed_webhook()`
+- **Frontend Component Splitting:**
+  - Created `/app/frontend/src/components/withdraw/` module:
+    - `AmountStep.jsx` - Amount entry with validation
+    - `BankSelectStep.jsx` - Bank account selection/addition
+    - `ConfirmStep.jsx` - Withdrawal confirmation
+    - `SuccessStep.jsx` - Success confirmation
+    - `withdrawConstants.js` - Shared constants and utilities
+  - Refactored `WithdrawNGN.jsx` from 738 lines to 135 lines
+- **All linting passed:** 0 errors across backend and frontend
+
 ### May 13, 2026 (v1.0.3)
 - **Code Quality Audit Fixes - Round 2:**
   - **Security Fixes:**

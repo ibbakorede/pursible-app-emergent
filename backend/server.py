@@ -21,6 +21,12 @@ import jwt
 import bcrypt
 import httpx
 
+# Import services
+from services.wallet_service import WalletService
+from services.transaction_service import TransactionService, ConversionRateService
+from services.notification_service import NotificationService, NotificationTemplates
+from services.kyc_service import KYCService
+
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
@@ -35,6 +41,13 @@ else:
     client = AsyncIOMotorClient(mongo_url)
 
 db = client[os.environ.get('DB_NAME', 'pursible')]
+
+# Initialize services
+wallet_service = WalletService(db)
+transaction_service = TransactionService(db)
+rate_service = ConversionRateService(db)
+notification_service = NotificationService(db)
+kyc_service = KYCService(db)
 
 # JWT Settings
 JWT_SECRET = os.environ.get('JWT_SECRET', 'pursible-secret-key-change-in-production')
@@ -729,31 +742,22 @@ async def verify_bank_account(data: BankVerifyRequest, user: dict = Depends(get_
 
 @functions_router.post("/withdraw")
 async def withdraw(data: WithdrawRequest, user: dict = Depends(get_current_user)):
-    """Process withdrawal"""
+    """Process withdrawal - Refactored to use services"""
     try:
-        # Check KYC
-        kyc = await db.kyc_records.find_one({"user_email": user["email"]})
-        if not kyc or kyc.get("status") != "approved":
-            return {
-                "success": False,
-                "kycBlocked": True,
-                "error": "Identity verification required",
-                "redirectTo": "/kyc"
-            }
+        # Check KYC requirement
+        kyc_check = await kyc_service.check_kyc_requirement(user["email"])
+        if kyc_check["blocked"]:
+            return kyc_check["response"]
         
         currency = data.currency.upper()
         amount = data.amount
         
-        # Get wallet
-        wallet = await db.wallets.find_one({
-            "user_email": user["email"],
-            "currency": currency
-        })
-        
+        # Get wallet and validate balance
+        wallet = await wallet_service.get_wallet(user["email"], currency)
         if not wallet:
             raise HTTPException(status_code=400, detail=f"No {currency} wallet found")
         
-        # Check balance
+        # Calculate fee and total
         fee = 50 if currency == "NGN" else 0
         total_needed = amount + fee
         
@@ -763,79 +767,54 @@ async def withdraw(data: WithdrawRequest, user: dict = Depends(get_current_user)
                 detail=f"Insufficient {currency} balance. Need {total_needed}, have {wallet.get('available_balance', 0)}"
             )
         
-        # Create reference
-        reference_id = f"WD-{currency}-{int(datetime.now().timestamp())}-{uuid.uuid4().hex[:6].upper()}"
+        # Generate reference
+        reference_id = transaction_service.generate_reference("WD", currency)
         
-        # Deduct from wallet
-        await db.wallets.update_one(
-            {"id": wallet["id"]},
-            {"$set": {
-                "available_balance": wallet["available_balance"] - total_needed,
-                "pending_balance": wallet.get("pending_balance", 0) + amount
-            }}
+        # Debit wallet and move to pending
+        await wallet_service.update_balance(
+            wallet["id"],
+            set_available=wallet["available_balance"] - total_needed,
+            set_pending=wallet.get("pending_balance", 0) + amount
         )
         
         # Create transaction
-        tx_id = generate_id()
-        tx = {
-            "id": tx_id,
-            "user_email": user["email"],
-            "type": "withdrawal",
-            "from_currency": currency,
-            "to_currency": currency,
-            "from_amount": amount,
-            "to_amount": amount,
-            "fee": fee,
-            "status": "processing",
-            "provider": "flutterwave" if currency == "NGN" else "manual",
-            "reference_id": reference_id,
-            "description": f"{currency} withdrawal",
-            "timeline": [
-                {"status": "initiated", "timestamp": get_timestamp(), "note": "Withdrawal requested"},
-                {"status": "processing", "timestamp": get_timestamp(), "note": "Processing withdrawal"}
-            ],
-            "created_date": get_timestamp()
-        }
+        tx = await transaction_service.create_transaction(
+            user_email=user["email"],
+            tx_type="withdrawal",
+            from_currency=currency,
+            to_currency=currency,
+            from_amount=amount,
+            to_amount=amount,
+            fee=fee,
+            status="processing",
+            provider="flutterwave" if currency == "NGN" else "manual",
+            description=f"{currency} withdrawal",
+            reference_id=reference_id,
+            metadata={"bank_account_id": data.destination.get("bankAccountId")} if data.destination.get("bankAccountId") else None
+        )
         
-        if data.destination.get("bankAccountId"):
-            tx["bank_account_id"] = data.destination["bankAccountId"]
-        
-        await db.transactions.insert_one(tx)
+        # Update status to processing
+        await transaction_service.update_status(tx["id"], "processing", "Processing withdrawal")
         
         # Create notification
-        await db.notifications.insert_one({
-            "id": generate_id(),
-            "user_email": user["email"],
-            "title": "Withdrawal Initiated",
-            "message": f"Your {currency} withdrawal of {amount} has been initiated.",
-            "type": "transaction",
-            "is_read": False,
-            "reference_id": tx_id,
-            "created_date": get_timestamp()
-        })
+        notif = NotificationTemplates.withdrawal_initiated(amount, currency)
+        await notification_service.create_transaction_notification(
+            user["email"], notif["title"], notif["message"], tx["id"]
+        )
         
-        # In test mode, auto-complete after a short delay (simulated)
+        # In test mode (no Flutterwave key), auto-complete
         if not FLUTTERWAVE_SECRET_KEY:
-            # Mark as completed immediately for demo
-            await db.transactions.update_one(
-                {"id": tx_id},
-                {"$set": {
-                    "status": "completed",
-                    "timeline": tx["timeline"] + [
-                        {"status": "completed", "timestamp": get_timestamp(), "note": "Completed (test mode)"}
-                    ]
-                }}
-            )
+            await transaction_service.update_status(tx["id"], "completed", "Completed (test mode)")
             # Clear pending
-            await db.wallets.update_one(
-                {"id": wallet["id"]},
-                {"$set": {"pending_balance": max(0, wallet.get("pending_balance", 0))}}
+            await wallet_service.update_balance(
+                wallet["id"],
+                set_pending=max(0, wallet.get("pending_balance", 0))
             )
         
         return {
             "success": True,
             "transaction": {
-                "id": tx_id,
+                "id": tx["id"],
                 "referenceId": reference_id,
                 "status": "processing",
                 "amount": amount,
@@ -853,66 +832,32 @@ async def withdraw(data: WithdrawRequest, user: dict = Depends(get_current_user)
 
 @functions_router.post("/swapCurrency")
 async def swap_currency(data: SwapRequest, user: dict = Depends(get_current_user)):
-    """Swap between currencies"""
+    """Swap between currencies - Refactored to use services"""
     try:
-        # Check KYC
-        kyc = await db.kyc_records.find_one({"user_email": user["email"]})
-        if not kyc or kyc.get("status") != "approved":
-            return {
-                "success": False,
-                "kycBlocked": True,
-                "error": "Identity verification required",
-                "redirectTo": "/kyc"
-            }
+        # Check KYC requirement
+        kyc_check = await kyc_service.check_kyc_requirement(user["email"])
+        if kyc_check["blocked"]:
+            return kyc_check["response"]
         
         from_currency = data.fromCurrency.upper()
         to_currency = data.toCurrency.upper()
         amount = data.amount
         
-        # Get source wallet
-        source_wallet = await db.wallets.find_one({
-            "user_email": user["email"],
-            "currency": from_currency
-        })
-        
+        # Validate source wallet and balance
+        source_wallet = await wallet_service.get_wallet(user["email"], from_currency)
         if not source_wallet:
             raise HTTPException(status_code=400, detail=f"No {from_currency} wallet found")
         
         if source_wallet.get("available_balance", 0) < amount:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Insufficient {from_currency} balance"
-            )
+            raise HTTPException(status_code=400, detail=f"Insufficient {from_currency} balance")
         
-        # Get or create conversion rate
-        rate_doc = await db.conversion_rates.find_one({
-            "from_currency": from_currency,
-            "to_currency": to_currency,
-            "is_active": True
-        })
+        # Get conversion rate
+        rate_info = await rate_service.get_rate(from_currency, to_currency)
+        rate = rate_info["rate"]
+        fee_percent = rate_info["fee_percent"]
         
-        if not rate_doc:
-            # Create default rates for demo
-            default_rates = {
-                "USD-NGN": 1550,
-                "USD-USDC": 1,
-                "USD-USDT": 1,
-                "USDC-NGN": 1550,
-                "USDT-NGN": 1550,
-                "NGN-USD": 0.000645,
-                "NGN-USDC": 0.000645,
-                "NGN-USDT": 0.000645,
-            }
-            rate_key = f"{from_currency}-{to_currency}"
-            rate = default_rates.get(rate_key, 1)
-            fee_percent = 0.5
-        else:
-            rate = rate_doc.get("rate", 1)
-            fee_percent = rate_doc.get("fee_percentage", 0.5)
-        
-        fee_amount = amount * (fee_percent / 100)
-        net_amount = amount - fee_amount
-        to_amount = round(net_amount * rate, 6)
+        # Calculate conversion
+        conversion = rate_service.calculate_conversion(amount, rate, fee_percent)
         
         # If not confirmed, return quote only
         if not data.confirmed:
@@ -922,88 +867,56 @@ async def swap_currency(data: SwapRequest, user: dict = Depends(get_current_user
                     "fromCurrency": from_currency,
                     "toCurrency": to_currency,
                     "fromAmount": amount,
-                    "toAmount": to_amount,
+                    "toAmount": conversion["to_amount"],
                     "rate": rate,
                     "feePercent": fee_percent,
-                    "feeAmount": round(fee_amount, 6),
-                    "provider": "pursible"
+                    "feeAmount": conversion["fee_amount"],
+                    "provider": rate_info["provider"]
                 }
             }
         
-        # Execute swap
-        # Deduct from source
-        await db.wallets.update_one(
-            {"id": source_wallet["id"]},
-            {"$set": {"available_balance": source_wallet["available_balance"] - amount}}
+        # Execute swap - debit source wallet
+        await wallet_service.debit_wallet(source_wallet["id"], amount)
+        
+        # Credit destination wallet
+        dest_wallet = await wallet_service.get_or_create_wallet(user["email"], to_currency)
+        await wallet_service.credit_wallet(dest_wallet["id"], conversion["to_amount"])
+        
+        # Create transaction record
+        reference_id = transaction_service.generate_reference("SW")
+        tx = await transaction_service.create_transaction(
+            user_email=user["email"],
+            tx_type="conversion",
+            from_currency=from_currency,
+            to_currency=to_currency,
+            from_amount=amount,
+            to_amount=conversion["to_amount"],
+            fee=conversion["fee_amount"],
+            status="completed",
+            provider="pursible",
+            description=f"{from_currency} to {to_currency} swap",
+            reference_id=reference_id
         )
         
-        # Credit destination
-        dest_wallet = await db.wallets.find_one({
-            "user_email": user["email"],
-            "currency": to_currency
-        })
+        # Update transaction status to completed
+        await transaction_service.update_status(tx["id"], "completed", "Swap completed")
         
-        if dest_wallet:
-            await db.wallets.update_one(
-                {"id": dest_wallet["id"]},
-                {"$set": {"available_balance": dest_wallet.get("available_balance", 0) + to_amount}}
-            )
-        else:
-            await db.wallets.insert_one({
-                "id": generate_id(),
-                "user_email": user["email"],
-                "currency": to_currency,
-                "available_balance": to_amount,
-                "pending_balance": 0,
-                "created_date": get_timestamp()
-            })
-        
-        # Create transaction
-        reference_id = f"SW-{int(datetime.now().timestamp())}-{uuid.uuid4().hex[:6].upper()}"
-        tx_id = generate_id()
-        
-        await db.transactions.insert_one({
-            "id": tx_id,
-            "user_email": user["email"],
-            "type": "conversion",
-            "from_currency": from_currency,
-            "to_currency": to_currency,
-            "from_amount": amount,
-            "to_amount": to_amount,
-            "fee": round(fee_amount, 6),
-            "status": "completed",
-            "provider": "pursible",
-            "reference_id": reference_id,
-            "description": f"{from_currency} to {to_currency} swap",
-            "timeline": [
-                {"status": "initiated", "timestamp": get_timestamp(), "note": "Swap initiated"},
-                {"status": "completed", "timestamp": get_timestamp(), "note": "Swap completed"}
-            ],
-            "created_date": get_timestamp()
-        })
-        
-        # Notification
-        await db.notifications.insert_one({
-            "id": generate_id(),
-            "user_email": user["email"],
-            "title": "Swap Completed",
-            "message": f"Swapped {amount} {from_currency} to {to_amount} {to_currency}",
-            "type": "transaction",
-            "is_read": False,
-            "reference_id": tx_id,
-            "created_date": get_timestamp()
-        })
+        # Send notification
+        notif = NotificationTemplates.swap_completed(amount, from_currency, conversion["to_amount"], to_currency)
+        await notification_service.create_transaction_notification(
+            user["email"], notif["title"], notif["message"], tx["id"]
+        )
         
         return {
             "success": True,
             "transaction": {
-                "id": tx_id,
+                "id": tx["id"],
                 "referenceId": reference_id,
                 "fromCurrency": from_currency,
                 "toCurrency": to_currency,
                 "fromAmount": amount,
-                "toAmount": to_amount,
-                "fee": round(fee_amount, 6),
+                "toAmount": conversion["to_amount"],
+                "fee": conversion["fee_amount"],
                 "rate": rate,
                 "status": "completed"
             }
@@ -1122,7 +1035,7 @@ async def create_user_wallet(user: dict = Depends(get_current_user)):
 
 @webhooks_router.post("/flutterwave")
 async def flutterwave_webhook(request: Request):
-    """Handle Flutterwave webhooks"""
+    """Handle Flutterwave webhooks - Refactored with separate handlers"""
     try:
         # Verify signature
         verif_hash = request.headers.get("verif-hash", "")
@@ -1136,121 +1049,107 @@ async def flutterwave_webhook(request: Request):
         
         logger.info(f"Flutterwave webhook: {event_type}")
         
+        # Handle different event types
         if event_type == "charge.completed":
-            # Deposit received
-            amount = float(data.get("amount", 0))
-            customer_email = data.get("customer", {}).get("email")
-            reference = data.get("flw_ref") or data.get("tx_ref")
-            
-            if customer_email and amount > 0:
-                # Credit NGN wallet
-                wallet = await db.wallets.find_one({
-                    "user_email": customer_email,
-                    "currency": "NGN"
-                })
-                
-                if wallet:
-                    await db.wallets.update_one(
-                        {"id": wallet["id"]},
-                        {"$set": {"available_balance": wallet.get("available_balance", 0) + amount}}
-                    )
-                
-                # Create transaction
-                await db.transactions.insert_one({
-                    "id": generate_id(),
-                    "user_email": customer_email,
-                    "type": "deposit",
-                    "from_currency": "NGN",
-                    "to_currency": "NGN",
-                    "from_amount": amount,
-                    "to_amount": amount,
-                    "fee": 0,
-                    "status": "completed",
-                    "provider": "flutterwave",
-                    "reference_id": reference,
-                    "description": "NGN deposit",
-                    "timeline": [
-                        {"status": "completed", "timestamp": get_timestamp(), "note": "Deposit confirmed"}
-                    ],
-                    "created_date": get_timestamp()
-                })
-                
-                # Notification
-                await db.notifications.insert_one({
-                    "id": generate_id(),
-                    "user_email": customer_email,
-                    "title": "Deposit Confirmed",
-                    "message": f"NGN {amount:,.2f} has been credited to your wallet.",
-                    "type": "transaction",
-                    "is_read": False,
-                    "created_date": get_timestamp()
-                })
-        
+            await _handle_deposit_webhook(data)
         elif event_type == "transfer.completed":
-            # Withdrawal completed
-            flw_transfer_id = str(data.get("id"))
-            tx = await db.transactions.find_one({"provider_transaction_id": flw_transfer_id})
-            
-            if tx and tx.get("status") != "completed":
-                await db.transactions.update_one(
-                    {"id": tx["id"]},
-                    {"$set": {
-                        "status": "completed",
-                        "timeline": tx.get("timeline", []) + [
-                            {"status": "completed", "timestamp": get_timestamp(), "note": "Withdrawal successful"}
-                        ]
-                    }}
-                )
-                
-                # Clear pending
-                wallet = await db.wallets.find_one({
-                    "user_email": tx["user_email"],
-                    "currency": tx["from_currency"]
-                })
-                if wallet:
-                    await db.wallets.update_one(
-                        {"id": wallet["id"]},
-                        {"$set": {"pending_balance": max(0, wallet.get("pending_balance", 0) - tx["from_amount"])}}
-                    )
-        
+            await _handle_withdrawal_success_webhook(data)
         elif event_type == "transfer.failed":
-            # Withdrawal failed
-            flw_transfer_id = str(data.get("id"))
-            reason = data.get("complete_message") or "Transfer failed"
-            
-            tx = await db.transactions.find_one({"provider_transaction_id": flw_transfer_id})
-            
-            if tx and tx.get("status") not in ["completed", "failed"]:
-                # Refund wallet
-                wallet = await db.wallets.find_one({
-                    "user_email": tx["user_email"],
-                    "currency": tx["from_currency"]
-                })
-                if wallet:
-                    refund = tx["from_amount"] + tx.get("fee", 0)
-                    await db.wallets.update_one(
-                        {"id": wallet["id"]},
-                        {"$set": {
-                            "available_balance": wallet.get("available_balance", 0) + refund,
-                            "pending_balance": max(0, wallet.get("pending_balance", 0) - tx["from_amount"])
-                        }}
-                    )
-                
-                await db.transactions.update_one(
-                    {"id": tx["id"]},
-                    {"$set": {
-                        "status": "failed",
-                        "timeline": tx.get("timeline", []) + [
-                            {"status": "failed", "timestamp": get_timestamp(), "note": reason}
-                        ]
-                    }}
-                )
+            await _handle_withdrawal_failed_webhook(data)
         
         return {"received": True}
         
     except Exception as e:
         logger.error(f"Flutterwave webhook error: {e}")
         return {"received": True}
+
+
+async def _handle_deposit_webhook(data: Dict[str, Any]) -> None:
+    """Handle deposit completed webhook"""
+    amount = float(data.get("amount", 0))
+    customer_email = data.get("customer", {}).get("email")
+    reference = data.get("flw_ref") or data.get("tx_ref")
+    
+    if not customer_email or amount <= 0:
+        return
+    
+    # Credit wallet
+    wallet = await wallet_service.get_or_create_wallet(customer_email, "NGN")
+    await wallet_service.credit_wallet(wallet["id"], amount)
+    
+    # Create transaction
+    await transaction_service.create_transaction(
+        user_email=customer_email,
+        tx_type="deposit",
+        from_currency="NGN",
+        to_currency="NGN",
+        from_amount=amount,
+        to_amount=amount,
+        status="completed",
+        provider="flutterwave",
+        reference_id=reference,
+        description="NGN deposit"
+    )
+    
+    # Notification
+    notif = NotificationTemplates.deposit_confirmed(amount, "NGN")
+    await notification_service.create_transaction_notification(
+        customer_email, notif["title"], notif["message"]
+    )
+
+
+async def _handle_withdrawal_success_webhook(data: Dict[str, Any]) -> None:
+    """Handle withdrawal completed webhook"""
+    flw_transfer_id = str(data.get("id"))
+    tx = await transaction_service.find_by_provider_ref(flw_transfer_id)
+    
+    if not tx or tx.get("status") == "completed":
+        return
+    
+    # Update transaction
+    await transaction_service.update_status(tx["id"], "completed", "Withdrawal successful")
+    
+    # Clear pending balance
+    wallet = await wallet_service.get_wallet(tx["user_email"], tx["from_currency"])
+    if wallet:
+        new_pending = max(0, wallet.get("pending_balance", 0) - tx["from_amount"])
+        await wallet_service.update_balance(wallet["id"], set_pending=new_pending)
+    
+    # Notification
+    notif = NotificationTemplates.withdrawal_completed(tx["from_amount"], tx["from_currency"])
+    await notification_service.create_transaction_notification(
+        tx["user_email"], notif["title"], notif["message"], tx["id"]
+    )
+
+
+async def _handle_withdrawal_failed_webhook(data: Dict[str, Any]) -> None:
+    """Handle withdrawal failed webhook"""
+    flw_transfer_id = str(data.get("id"))
+    reason = data.get("complete_message") or "Transfer failed"
+    
+    tx = await transaction_service.find_by_provider_ref(flw_transfer_id)
+    
+    if not tx or tx.get("status") in ["completed", "failed"]:
+        return
+    
+    # Refund wallet
+    wallet = await wallet_service.get_wallet(tx["user_email"], tx["from_currency"])
+    if wallet:
+        refund = tx["from_amount"] + tx.get("fee", 0)
+        await wallet_service.update_balance(
+            wallet["id"],
+            available_delta=refund,
+            set_pending=max(0, wallet.get("pending_balance", 0) - tx["from_amount"])
+        )
+    
+    # Update transaction
+    await transaction_service.update_status(tx["id"], "failed", reason)
+    
+    # Notification
+    notif = NotificationTemplates.withdrawal_failed(tx["from_amount"], tx["from_currency"], reason)
+    await notification_service.create_transaction_notification(
+        tx["user_email"], notif["title"], notif["message"], tx["id"]
+    )
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # FILE UPLOAD ENDPOINT
