@@ -23,9 +23,12 @@ import httpx
 
 # Import services
 from services.wallet_service import WalletService
-from services.transaction_service import TransactionService, ConversionRateService
+from services.transaction_service import TransactionService, ConversionRateService, TransactionConfig
 from services.notification_service import NotificationService, NotificationTemplates
 from services.kyc_service import KYCService
+from services.user_service import UserService
+from services.bank_service import BankVerificationService, BANK_CODES
+from services.seed_service import SeedDataService
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -41,13 +44,6 @@ else:
     client = AsyncIOMotorClient(mongo_url)
 
 db = client[os.environ.get('DB_NAME', 'pursible')]
-
-# Initialize services
-wallet_service = WalletService(db)
-transaction_service = TransactionService(db)
-rate_service = ConversionRateService(db)
-notification_service = NotificationService(db)
-kyc_service = KYCService(db)
 
 # JWT Settings
 JWT_SECRET = os.environ.get('JWT_SECRET', 'pursible-secret-key-change-in-production')
@@ -68,6 +64,16 @@ DOJAH_SECRET_KEY = os.environ.get('DOJAH_SECRET_KEY', '')
 DOJAH_APP_ID = os.environ.get('DOJAH_APP_ID', '')
 BRIDGE_API_KEY = os.environ.get('BRIDGE_API_KEY', '')
 WEBHOOK_SECRET = os.environ.get('WEBHOOK_SECRET', '')
+
+# Initialize services (after env vars are loaded)
+wallet_service = WalletService(db)
+transaction_service = TransactionService(db)
+rate_service = ConversionRateService(db)
+notification_service = NotificationService(db)
+kyc_service = KYCService(db)
+user_service = UserService(db)
+bank_service = BankVerificationService(FLUTTERWAVE_SECRET_KEY)
+seed_service = SeedDataService(db)
 
 # API Base URLs
 FLW_BASE = "https://api.flutterwave.com/v3"
@@ -275,95 +281,36 @@ async def log_error(
     except Exception:
         logger.warning(f"Failed to log error: {function_name} - {error_message}")
 
-# Nigerian bank codes
-BANK_CODES = {
-    'Access Bank': '044',
-    'Carbon': '565',
-    'Citibank Nigeria': '023',
-    'Ecobank Nigeria': '050',
-    'Fidelity Bank': '070',
-    'First Bank of Nigeria': '011',
-    'First City Monument Bank (FCMB)': '030',
-    'Guaranty Trust Bank (GTBank)': '058',
-    'Heritage Bank': '051',
-    'Jaiz Bank': '089',
-    'Keystone Bank': '082',
-    'Kuda Bank': '090',
-    'Moniepoint': '999993',
-    'OPay': '999991',
-    'PalmPay': '999992',
-    'Parallex Bank': '526',
-    'Polaris Bank': '076',
-    'Providus Bank': '101',
-    'Stanbic IBTC Bank': '039',
-    'Standard Chartered Bank': '068',
-    'Sterling Bank': '232',
-    'SunTrust Bank': '100',
-    'Union Bank': '032',
-    'United Bank for Africa (UBA)': '033',
-    'Unity Bank': '215',
-    'Wema Bank': '035',
-    'Zenith Bank': '057',
-}
-
 # ═══════════════════════════════════════════════════════════════════════════════
 # AUTHENTICATION ROUTES
 # ═══════════════════════════════════════════════════════════════════════════════
 
 @auth_router.post("/register", response_model=TokenResponse)
 async def register(data: UserCreate, response: Response):
-    """Register a new user"""
+    """Register a new user - uses UserService for creation"""
     # Check if user exists
-    existing = await db.users.find_one({"email": data.email})
-    if existing:
+    if await user_service.email_exists(data.email):
         raise HTTPException(status_code=400, detail="Email already registered")
     
-    user_id = generate_id()
-    user_doc = {
-        "id": user_id,
-        "email": data.email,
-        "password_hash": hash_password(data.password),
-        "full_name": data.full_name,
-        "kyc_status": None,
-        "biometric_enabled": False,
-        "biometric_credentials": None,
-        "push_token": None,
-        "created_date": get_timestamp()
-    }
-    await db.users.insert_one(user_doc)
+    # Create user record
+    user_doc = await user_service.create_user_record(
+        email=data.email,
+        password=data.password,
+        full_name=data.full_name
+    )
     
-    # Create initial wallets for the user
-    currencies = ["USD", "USDC", "USDT", "NGN"]
-    for currency in currencies:
-        await db.wallets.insert_one({
-            "id": generate_id(),
-            "user_email": data.email,
-            "currency": currency,
-            "available_balance": 0,
-            "pending_balance": 0,
-            "created_date": get_timestamp()
-        })
+    # Setup wallets and balance snapshot
+    await user_service.setup_user_wallets(data.email)
+    await user_service.setup_balance_snapshot(data.email)
     
-    # Create balance snapshot
-    await db.balances.insert_one({
-        "id": generate_id(),
-        "user_email": data.email,
-        "usd": 0,
-        "usdc": 0,
-        "usdt": 0,
-        "ngn": 0,
-        "last_updated": get_timestamp()
-    })
-    
-    token = create_jwt_token(user_id, data.email)
-    
-    # Set httpOnly cookie
+    # Generate token and set cookie
+    token = create_jwt_token(user_doc["id"], data.email)
     set_auth_cookie(response, token)
     
     return TokenResponse(
         token=token,
         user=UserResponse(
-            id=user_id,
+            id=user_doc["id"],
             email=data.email,
             full_name=data.full_name,
             kyc_status=None,
@@ -787,53 +734,18 @@ async def submit_kyc(data: dict, user: dict = Depends(get_current_user)):
 
 @functions_router.post("/verifyBankAccount")
 async def verify_bank_account(data: BankVerifyRequest, user: dict = Depends(get_current_user)):
-    """Verify Nigerian bank account"""
+    """Verify Nigerian bank account - uses BankVerificationService"""
     try:
-        bank_code = BANK_CODES.get(data.bankName)
-        if not bank_code:
-            raise HTTPException(status_code=400, detail=f"Unrecognized bank: {data.bankName}")
+        result = await bank_service.verify_account(
+            bank_name=data.bankName,
+            account_number=data.accountNumber
+        )
         
-        if len(data.accountNumber) != 10 or not data.accountNumber.isdigit():
-            raise HTTPException(status_code=400, detail="Account number must be exactly 10 digits")
+        if not result.get("success"):
+            raise HTTPException(status_code=400, detail=result.get("error"))
         
-        # If no Flutterwave key, return mock success for testing
-        if not FLUTTERWAVE_SECRET_KEY:
-            return {
-                "success": True,
-                "accountName": f"TEST USER - {data.accountNumber[-4:]}",
-                "verified": True,
-                "note": "Test mode - verification simulated"
-            }
+        return result
         
-        # Call Flutterwave API
-        async with httpx.AsyncClient() as client:
-            response = await client.get(
-                f"{FLW_BASE}/accounts/resolve",
-                params={
-                    "account_number": data.accountNumber,
-                    "account_bank": bank_code
-                },
-                headers={
-                    "Authorization": f"Bearer {FLUTTERWAVE_SECRET_KEY}",
-                    "Content-Type": "application/json"
-                },
-                timeout=10.0
-            )
-            
-            result = response.json()
-            
-            if result.get("status") != "success" or not result.get("data", {}).get("account_name"):
-                raise HTTPException(
-                    status_code=400,
-                    detail="Account could not be verified. Please check the details."
-                )
-            
-            return {
-                "success": True,
-                "accountName": result["data"]["account_name"],
-                "verified": True
-            }
-            
     except HTTPException:
         raise
     except Exception as e:
@@ -877,8 +789,8 @@ async def withdraw(data: WithdrawRequest, user: dict = Depends(get_current_user)
             set_pending=wallet.get("pending_balance", 0) + amount
         )
         
-        # Create transaction
-        tx = await transaction_service.create_transaction(
+        # Create transaction using TransactionConfig
+        tx_config = TransactionConfig(
             user_email=user["email"],
             tx_type="withdrawal",
             from_currency=currency,
@@ -892,6 +804,7 @@ async def withdraw(data: WithdrawRequest, user: dict = Depends(get_current_user)
             reference_id=reference_id,
             metadata={"bank_account_id": data.destination.get("bankAccountId")} if data.destination.get("bankAccountId") else None
         )
+        tx = await transaction_service.create_transaction(tx_config)
         
         # Update status to processing
         await transaction_service.update_status(tx["id"], "processing", "Processing withdrawal")
@@ -982,9 +895,9 @@ async def swap_currency(data: SwapRequest, user: dict = Depends(get_current_user
         dest_wallet = await wallet_service.get_or_create_wallet(user["email"], to_currency)
         await wallet_service.credit_wallet(dest_wallet["id"], conversion["to_amount"])
         
-        # Create transaction record
+        # Create transaction record using TransactionConfig
         reference_id = transaction_service.generate_reference("SW")
-        tx = await transaction_service.create_transaction(
+        tx_config = TransactionConfig(
             user_email=user["email"],
             tx_type="conversion",
             from_currency=from_currency,
@@ -997,6 +910,7 @@ async def swap_currency(data: SwapRequest, user: dict = Depends(get_current_user
             description=f"{from_currency} to {to_currency} swap",
             reference_id=reference_id
         )
+        tx = await transaction_service.create_transaction(tx_config)
         
         # Update transaction status to completed
         await transaction_service.update_status(tx["id"], "completed", "Swap completed")
@@ -1361,55 +1275,9 @@ async def get_conversion_rates():
 
 @api_router.get("/rates/{from_currency}/{to_currency}")
 async def get_specific_rate(from_currency: str, to_currency: str):
-    """Get rate for a specific currency pair"""
+    """Get rate for a specific currency pair - uses ConversionRateService"""
     try:
-        from_curr = from_currency.upper()
-        to_curr = to_currency.upper()
-        
-        rate_doc = await db.conversion_rates.find_one({
-            "from_currency": from_curr,
-            "to_currency": to_curr,
-            "is_active": True
-        }, {"_id": 0})
-        
-        if rate_doc:
-            return {
-                "success": True,
-                "rate": rate_doc.get("rate"),
-                "fee_percentage": rate_doc.get("fee_percentage", 0.5),
-                "from_currency": from_curr,
-                "to_currency": to_curr
-            }
-        
-        # Default rates
-        default_rates = {
-            "USD-NGN": 1550,
-            "USD-USDC": 1,
-            "USD-USDT": 1,
-            "USDC-NGN": 1550,
-            "USDC-USD": 1,
-            "USDT-NGN": 1550,
-            "USDT-USD": 1,
-            "NGN-USD": 0.000645,
-            "NGN-USDC": 0.000645,
-            "NGN-USDT": 0.000645,
-        }
-        
-        rate_key = f"{from_curr}-{to_curr}"
-        if rate_key in default_rates:
-            return {
-                "success": True,
-                "rate": default_rates[rate_key],
-                "fee_percentage": 0.5,
-                "from_currency": from_curr,
-                "to_currency": to_curr
-            }
-        
-        return {
-            "success": False,
-            "error": f"No rate available for {from_curr} to {to_curr}"
-        }
-        
+        return await rate_service.get_specific_rate(from_currency, to_currency)
     except Exception as e:
         logger.error(f"Error fetching specific rate: {e}")
         return {"success": False, "error": "Unable to fetch rate"}
@@ -1420,79 +1288,8 @@ async def get_specific_rate(from_currency: str, to_currency: str):
 
 @api_router.post("/seed-demo-data")
 async def seed_demo_data():
-    """Seed demo conversion rates and deposit accounts"""
-    # Seed conversion rates
-    rates = [
-        {"from_currency": "USD", "to_currency": "NGN", "rate": 1550, "fee_percentage": 0.5, "is_active": True},
-        {"from_currency": "USD", "to_currency": "USDC", "rate": 1, "fee_percentage": 0.1, "is_active": True},
-        {"from_currency": "USD", "to_currency": "USDT", "rate": 1, "fee_percentage": 0.1, "is_active": True},
-        {"from_currency": "USDC", "to_currency": "NGN", "rate": 1550, "fee_percentage": 0.5, "is_active": True},
-        {"from_currency": "USDC", "to_currency": "USD", "rate": 1, "fee_percentage": 0.1, "is_active": True},
-        {"from_currency": "USDT", "to_currency": "NGN", "rate": 1550, "fee_percentage": 0.5, "is_active": True},
-        {"from_currency": "USDT", "to_currency": "USD", "rate": 1, "fee_percentage": 0.1, "is_active": True},
-        {"from_currency": "NGN", "to_currency": "USD", "rate": 0.000645, "fee_percentage": 0.5, "is_active": True},
-        {"from_currency": "NGN", "to_currency": "USDC", "rate": 0.000645, "fee_percentage": 0.5, "is_active": True},
-        {"from_currency": "NGN", "to_currency": "USDT", "rate": 0.000645, "fee_percentage": 0.5, "is_active": True},
-    ]
-    
-    for rate in rates:
-        existing = await db.conversion_rates.find_one({
-            "from_currency": rate["from_currency"],
-            "to_currency": rate["to_currency"]
-        })
-        if not existing:
-            rate["id"] = generate_id()
-            rate["created_date"] = get_timestamp()
-            await db.conversion_rates.insert_one(rate)
-    
-    # Seed deposit accounts (these are the deposit channel configurations)
-    deposit_accounts = [
-        {
-            "id": generate_id(),
-            "type": "usd_wire",
-            "label": "USD Wire Transfer",
-            "is_active": True,
-            "fields": [
-                {"key": "bank_name", "label": "Bank Name", "value": "Bridge Bank"},
-                {"key": "routing_number", "label": "Routing Number", "value": "Demo Routing"},
-                {"key": "account_number", "label": "Account Number", "value": "Demo Account"},
-                {"key": "account_type", "label": "Account Type", "value": "Checking"},
-                {"key": "reference", "label": "Reference", "value": "Use your email"},
-            ],
-            "created_date": get_timestamp()
-        },
-        {
-            "id": generate_id(),
-            "type": "stable_wallet",
-            "label": "USDT / Stablecoin",
-            "is_active": True,
-            "fields": [
-                {"key": "network", "label": "Network", "value": "Ethereum / ERC-20"},
-                {"key": "wallet_address", "label": "Wallet Address", "value": "0x1234567890abcdef1234567890abcdef12345678"},
-                {"key": "supported_tokens", "label": "Supported Tokens", "value": "USDT, USDC"},
-            ],
-            "created_date": get_timestamp()
-        },
-        {
-            "id": generate_id(),
-            "type": "ngn_bank",
-            "label": "NGN Bank Transfer",
-            "is_active": True,
-            "fields": [
-                {"key": "bank_name", "label": "Bank Name", "value": "Wema Bank"},
-                {"key": "account_number", "label": "Account Number", "value": "9900000001"},
-                {"key": "account_name", "label": "Account Name", "value": "Pursible Ltd"},
-            ],
-            "created_date": get_timestamp()
-        }
-    ]
-    
-    for account in deposit_accounts:
-        existing = await db.deposit_accounts.find_one({"type": account["type"]})
-        if not existing:
-            await db.deposit_accounts.insert_one(account)
-    
-    return {"success": True, "message": "Demo data seeded (rates + deposit accounts)"}
+    """Seed demo conversion rates and deposit accounts - uses SeedDataService"""
+    return await seed_service.seed_all()
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # ADMIN MANAGEMENT

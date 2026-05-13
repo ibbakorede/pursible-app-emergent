@@ -19,6 +19,14 @@ const BONUS_TYPE_CONFIG = {
   volume_milestone: { label: 'Volume Milestone', color: '#f97316' }
 };
 
+// Chart style constants
+const CHART_TICK_STYLE = { fontSize: 12 };
+const CHART_TOOLTIP_STYLE = {
+  backgroundColor: 'hsl(var(--card))',
+  border: '1px solid hsl(var(--border))',
+  borderRadius: '8px'
+};
+
 export default function ReferralActivityDashboard({ referrals }) {
   const [dateRange, setDateRange] = useState('all');
   const [selectedType, setSelectedType] = useState('all');
@@ -131,14 +139,10 @@ export default function ReferralActivityDashboard({ referrals }) {
               <ResponsiveContainer width="100%" height={250}>
                 <BarChart data={dailyActivity}>
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                  <XAxis dataKey="date" tick={{ fontSize: 12 }} />
-                  <YAxis tick={{ fontSize: 12 }} />
+                  <XAxis dataKey="date" tick={CHART_TICK_STYLE} />
+                  <YAxis tick={CHART_TICK_STYLE} />
                   <Tooltip
-                    contentStyle={{
-                      backgroundColor: 'hsl(var(--card))',
-                      border: '1px solid hsl(var(--border))',
-                      borderRadius: '8px'
-                    }}
+                    contentStyle={CHART_TOOLTIP_STYLE}
                     formatter={(value) => `$${value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
                   />
                   <Bar dataKey="amount" fill="hsl(var(--primary))" radius={[8, 8, 0, 0]} />

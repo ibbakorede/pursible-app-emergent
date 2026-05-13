@@ -10,6 +10,12 @@ import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/lib/AuthContext';
 
+// Animation constants
+const PAGE_INITIAL = { opacity: 0, x: 10 };
+const PAGE_ANIMATE = { opacity: 1, x: 0 };
+const PAGE_EXIT = { opacity: 0, x: -10 };
+const PAGE_TRANSITION = { duration: 0.2 };
+
 const sidebarItems = [
   { path: '/admin', icon: LayoutDashboard, label: 'Overview', exact: true },
   { path: '/admin/users', icon: Users, label: 'Users' },
@@ -121,10 +127,10 @@ export default function AdminLayout() {
         </header>
         <motion.main 
           className="p-4 lg:p-6"
-          initial={{ opacity: 0, x: 10 }}
-          animate={{ opacity: 1, x: 0 }}
-          exit={{ opacity: 0, x: -10 }}
-          transition={{ duration: 0.2 }}
+          initial={PAGE_INITIAL}
+          animate={PAGE_ANIMATE}
+          exit={PAGE_EXIT}
+          transition={PAGE_TRANSITION}
         >
           <Outlet />
         </motion.main>

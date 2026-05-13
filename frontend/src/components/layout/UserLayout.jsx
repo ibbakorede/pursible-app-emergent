@@ -6,6 +6,12 @@ import { useTabHistory } from '@/hooks/useTabHistory';
 import { useBackGesture } from '@/hooks/useBackGesture';
 import PostLoginPrompts from '@/components/shared/PostLoginPrompts';
 
+// Animation constants - shared with AdminLayout
+const PAGE_INITIAL = { opacity: 0, x: 10 };
+const PAGE_ANIMATE = { opacity: 1, x: 0 };
+const PAGE_EXIT = { opacity: 0, x: -10 };
+const PAGE_TRANSITION = { duration: 0.2 };
+
 const navItems = [
   { path: '/', icon: Home, label: 'Home' },
   { path: '/wallet', icon: Wallet, label: 'Wallet' },
@@ -37,10 +43,10 @@ export default function UserLayout() {
       {!isTabRoute && <BackHeader />}
       <motion.main 
         className="flex-1 pb-20 max-w-lg mx-auto w-full"
-        initial={{ opacity: 0, x: 10 }}
-        animate={{ opacity: 1, x: 0 }}
-        exit={{ opacity: 0, x: -10 }}
-        transition={{ duration: 0.2 }}
+        initial={PAGE_INITIAL}
+        animate={PAGE_ANIMATE}
+        exit={PAGE_EXIT}
+        transition={PAGE_TRANSITION}
       >
         <Outlet />
       </motion.main>

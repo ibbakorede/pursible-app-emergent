@@ -11,6 +11,15 @@ import {
 
 const CURRENCIES = ['USD', 'USDC', 'USDT', 'NGN'];
 
+// Chart style constants - extracted from inline objects
+const CHART_TICK_STYLE = { fontSize: 12 };
+const TOOLTIP_CONTENT_STYLE = {
+  backgroundColor: 'hsl(var(--card))',
+  border: '1px solid hsl(var(--border))',
+  borderRadius: '8px',
+};
+const LINE_DOT_STYLE = { r: 6 };
+
 const BENCHMARK_RATES = {
   'USD-USDC': 1.0,
   'USD-USDT': 1.0,
@@ -178,14 +187,10 @@ export default function MarketComparison() {
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={chartData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                <XAxis dataKey="name" tick={{ fontSize: 12 }} />
-                <YAxis tick={{ fontSize: 12 }} />
+                <XAxis dataKey="name" tick={CHART_TICK_STYLE} />
+                <YAxis tick={CHART_TICK_STYLE} />
                 <Tooltip
-                  contentStyle={{
-                    backgroundColor: 'hsl(var(--card))',
-                    border: '1px solid hsl(var(--border))',
-                    borderRadius: '8px',
-                  }}
+                  contentStyle={TOOLTIP_CONTENT_STYLE}
                   formatter={(value) => value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 />
                 <Legend />
@@ -194,7 +199,7 @@ export default function MarketComparison() {
                   dataKey={rate1Key}
                   stroke="hsl(var(--primary))"
                   strokeWidth={3}
-                  dot={{ r: 6 }}
+                  dot={LINE_DOT_STYLE}
                   name={`${pair1.from}→${pair1.to}`}
                 />
                 <Line
@@ -202,7 +207,7 @@ export default function MarketComparison() {
                   dataKey={rate2Key}
                   stroke="hsl(var(--accent))"
                   strokeWidth={3}
-                  dot={{ r: 6 }}
+                  dot={LINE_DOT_STYLE}
                   name={`${pair2.from}→${pair2.to}`}
                 />
                 <Line

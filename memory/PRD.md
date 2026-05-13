@@ -229,6 +229,87 @@
 
 ## Changelog
 
+### May 13, 2026 (v1.0.8) - PROMPT 2 of 3 Complete
+
+#### Phase 1: Backend Complexity Refactoring
+
+**New Services Created:**
+| Service File | Functions | Purpose |
+|-------------|-----------|---------|
+| `services/user_service.py` | 8 functions | User creation, wallet setup, balance snapshots |
+| `services/bank_service.py` | 5 functions | Bank account verification, Flutterwave integration |
+| `services/seed_service.py` | 3 functions | Demo data seeding (rates, accounts) |
+
+**TransactionConfig Pydantic Model:**
+- Replaced 13 positional arguments in `create_transaction()` with single `TransactionConfig` model
+- All callers updated: `withdraw()`, `swap_currency()`
+
+**Refactored Functions in server.py:**
+| Function | Original Lines | New Lines | Helpers Introduced |
+|----------|---------------|-----------|-------------------|
+| `register()` | ~45 | ~20 | `user_service.create_user_record()`, `setup_user_wallets()`, `setup_balance_snapshot()` |
+| `verify_bank_account()` | ~45 | ~12 | `bank_service.verify_account()` |
+| `get_specific_rate()` | ~45 | ~5 | `rate_service.get_specific_rate()` |
+| `seed_demo_data()` | ~74 | ~3 | `seed_service.seed_all()` |
+| `withdraw()` | same | same | Now uses `TransactionConfig` |
+| `swap_currency()` | same | same | Now uses `TransactionConfig` |
+
+**Complexity Metrics (radon cc):**
+- `register()`: CC 3 → CC 2 ✓
+- `verify_bank_account()`: CC 9 → CC 4 ✓
+- `get_specific_rate()`: CC 4 → CC 2 ✓
+- `seed_demo_data()`: CC 5 → CC 1 ✓
+- Average complexity: B (7.45)
+- No function exceeds CC 10 ✓
+
+**Endpoint Verification (Manual):**
+| Endpoint | Status |
+|----------|--------|
+| POST /api/auth/register | YES |
+| POST /api/functions/submitKYC | YES |
+| POST /api/functions/verifyBankAccount | YES |
+| POST /api/functions/swapCurrency | YES (quote) |
+| POST /api/functions/withdraw | YES (balance check) |
+| POST /api/functions/depositFiat | YES |
+| GET /api/rates/USD/NGN | YES |
+| POST /api/seed-demo-data | YES |
+
+#### Phase 2: Inline Props Extraction
+
+**Files Changed:**
+| File | What Was Extracted | Type |
+|------|-------------------|------|
+| `AuthContext.jsx` | Provider value → `useMemo` with 13 deps | useMemo |
+| `MarketComparison.jsx` | `CHART_TICK_STYLE`, `TOOLTIP_CONTENT_STYLE`, `LINE_DOT_STYLE` | Module constants |
+| `BalanceTrendChart.jsx` | `CHART_MARGIN`, `ACTIVE_DOT_STYLE` | Module constants |
+| `BottomSheetSelect.jsx` | `BACKDROP_INITIAL/ANIMATE/EXIT`, `SHEET_INITIAL/ANIMATE/EXIT/TRANSITION` | Module constants |
+| `ReferralActivityDashboard.jsx` | `CHART_TICK_STYLE`, `CHART_TOOLTIP_STYLE` | Module constants |
+| `AdminLayout.jsx` | `PAGE_INITIAL/ANIMATE/EXIT/TRANSITION` | Module constants |
+| `UserLayout.jsx` | `PAGE_INITIAL/ANIMATE/EXIT/TRANSITION` | Module constants |
+| `RouteTransition.jsx` | `TRANSITION_CONFIG` | Module constants |
+
+**Visual Verification:**
+- Wallet chart renders correctly: YES
+- Market comparison renders correctly: YES
+- All layouts animate correctly: YES
+
+#### Smoke Test Results (10/10 endpoints):
+| Test | Result |
+|------|--------|
+| Login | YES |
+| Logout | YES |
+| Re-login | YES |
+| View Wallet | YES |
+| Rate Alerts | YES |
+| KYC Submit | YES |
+| Swap Currency | YES (balance check) |
+| Withdraw NGN | YES (balance check) |
+| Referrals | YES |
+| Goals | YES |
+
+#### Items Not Fixed:
+- None - all Phase 1 and Phase 2 items completed successfully.
+
 ### May 13, 2026 (v1.0.7) - PROMPT 1 of 3 Complete
 - **Phase 1: Security Hardening (httpOnly Cookies)**
   - **Backend Changes:**

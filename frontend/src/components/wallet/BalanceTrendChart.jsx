@@ -2,6 +2,10 @@ import { useMemo } from 'react';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { format, subDays, startOfDay } from 'date-fns';
 
+// Chart style constants - extracted from inline objects
+const CHART_MARGIN = { top: 4, right: 0, left: 0, bottom: 0 };
+const ACTIVE_DOT_STYLE = { r: 4, fill: 'white', strokeWidth: 0 };
+
 // Build daily balance snapshots from a list of transactions + current balance
 function buildTrendData(transactions, currentBalance, days = 14) {
   const today = startOfDay(new Date());
@@ -66,7 +70,7 @@ export default function BalanceTrendChart({ transactions = [], currentBalance = 
       </div>
       <div className="h-24">
         <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={data} margin={{ top: 4, right: 0, left: 0, bottom: 0 }}>
+          <AreaChart data={data} margin={CHART_MARGIN}>
             <defs>
               <linearGradient id="balanceGrad" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="5%" stopColor="rgba(255,255,255,0.4)" />
@@ -83,7 +87,7 @@ export default function BalanceTrendChart({ transactions = [], currentBalance = 
               strokeWidth={2}
               fill="url(#balanceGrad)"
               dot={false}
-              activeDot={{ r: 4, fill: 'white', strokeWidth: 0 }}
+              activeDot={ACTIVE_DOT_STYLE}
             />
           </AreaChart>
         </ResponsiveContainer>

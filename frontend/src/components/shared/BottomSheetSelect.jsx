@@ -2,6 +2,15 @@ import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Search, X } from 'lucide-react';
 
+// Animation constants - extracted from inline objects
+const BACKDROP_INITIAL = { opacity: 0 };
+const BACKDROP_ANIMATE = { opacity: 1 };
+const BACKDROP_EXIT = { opacity: 0 };
+const SHEET_INITIAL = { y: '100%' };
+const SHEET_ANIMATE = { y: 0 };
+const SHEET_EXIT = { y: '100%' };
+const SHEET_TRANSITION = { type: 'spring', damping: 30, stiffness: 300 };
+
 export default function BottomSheetSelect({
   open,
   onOpenChange,
@@ -66,19 +75,19 @@ export default function BottomSheetSelect({
             {/* Backdrop */}
             <motion.div
               className="fixed inset-0 bg-black/50 z-[100]"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
+              initial={BACKDROP_INITIAL}
+              animate={BACKDROP_ANIMATE}
+              exit={BACKDROP_EXIT}
               onClick={() => onOpenChange(false)}
             />
             
             {/* Sheet */}
             <motion.div
               className="fixed inset-x-0 bottom-0 z-[101] bg-background rounded-t-3xl shadow-2xl"
-              initial={{ y: '100%' }}
-              animate={{ y: 0 }}
-              exit={{ y: '100%' }}
-              transition={{ type: 'spring', damping: 30, stiffness: 300 }}
+              initial={SHEET_INITIAL}
+              animate={SHEET_ANIMATE}
+              exit={SHEET_EXIT}
+              transition={SHEET_TRANSITION}
               style={{ maxHeight: '75vh' }}
             >
               {/* Handle bar */}

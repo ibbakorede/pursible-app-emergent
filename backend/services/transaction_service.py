@@ -3,7 +3,24 @@ Transaction Service - Handles transaction creation and updates
 """
 from typing import Dict, Any, Optional, List
 from datetime import datetime, timezone
+from pydantic import BaseModel, Field
 import uuid
+
+
+class TransactionConfig(BaseModel):
+    """Configuration for creating a transaction - replaces 13 positional args"""
+    user_email: str
+    tx_type: str
+    from_currency: str
+    to_currency: str
+    from_amount: float
+    to_amount: float
+    fee: float = 0
+    status: str = "pending"
+    provider: str = "pursible"
+    description: str = ""
+    reference_id: Optional[str] = None
+    metadata: Optional[Dict[str, Any]] = None
 
 
 class TransactionService:
@@ -26,46 +43,39 @@ class TransactionService:
         """Get current UTC timestamp in ISO format"""
         return datetime.now(timezone.utc).isoformat()
     
-    async def create_transaction(
-        self,
-        user_email: str,
-        tx_type: str,
-        from_currency: str,
-        to_currency: str,
-        from_amount: float,
-        to_amount: float,
-        fee: float = 0,
-        status: str = "pending",
-        provider: str = "pursible",
-        description: str = "",
-        reference_id: Optional[str] = None,
-        metadata: Optional[Dict[str, Any]] = None
-    ) -> Dict[str, Any]:
-        """Create a new transaction record"""
+    async def create_transaction(self, config: TransactionConfig) -> Dict[str, Any]:
+        """Create a new transaction record using TransactionConfig"""
         tx_id = str(uuid.uuid4())
         timestamp = self.get_timestamp()
         
         transaction = {
             "id": tx_id,
-            "user_email": user_email,
-            "type": tx_type,
-            "from_currency": from_currency.upper(),
-            "to_currency": to_currency.upper(),
-            "from_amount": from_amount,
-            "to_amount": to_amount,
-            "fee": round(fee, 6),
-            "status": status,
-            "provider": provider,
-            "reference_id": reference_id or self.generate_reference(tx_type[:2].upper(), from_currency),
-            "description": description or f"{tx_type.capitalize()} transaction",
+            "user_email": config.user_email,
+            "type": config.tx_type,
+            "from_currency": config.from_currency.upper(),
+            "to_currency": config.to_currency.upper(),
+            "from_amount": config.from_amount,
+            "to_amount": config.to_amount,
+            "fee": round(config.fee, 6),
+            "status": config.status,
+            "provider": config.provider,
+            "reference_id": config.reference_id or self.generate_reference(
+                config.tx_type[:2].upper(), 
+                config.from_currency
+            ),
+            "description": config.description or f"{config.tx_type.capitalize()} transaction",
             "timeline": [
-                {"status": "initiated", "timestamp": timestamp, "note": f"{tx_type.capitalize()} initiated"}
+                {
+                    "status": "initiated", 
+                    "timestamp": timestamp, 
+                    "note": f"{config.tx_type.capitalize()} initiated"
+                }
             ],
             "created_date": timestamp
         }
         
-        if metadata:
-            transaction.update(metadata)
+        if config.metadata:
+            transaction.update(config.metadata)
         
         await self.db.transactions.insert_one(transaction)
         return {k: v for k, v in transaction.items() if k != "_id"}
@@ -90,7 +100,7 @@ class TransactionService:
             "note": note or f"Status changed to {new_status}"
         })
         
-        update_ops = {
+        update_ops: Dict[str, Any] = {
             "status": new_status,
             "timeline": timeline,
             "updated_date": timestamp
@@ -117,7 +127,7 @@ class TransactionService:
         limit: int = 50
     ) -> List[Dict[str, Any]]:
         """Get transactions for a user with optional filters"""
-        query = {"user_email": user_email}
+        query: Dict[str, Any] = {"user_email": user_email}
         if tx_type:
             query["type"] = tx_type
         if status:
@@ -137,7 +147,7 @@ class TransactionService:
 class ConversionRateService:
     """Service for managing conversion rates"""
     
-    DEFAULT_RATES = {
+    DEFAULT_RATES: Dict[str, float] = {
         "USD-NGN": 1550,
         "USD-USDC": 1,
         "USD-USDT": 1,
@@ -150,7 +160,7 @@ class ConversionRateService:
         "NGN-USDT": 0.000645,
     }
     
-    DEFAULT_FEE_PERCENT = 0.5
+    DEFAULT_FEE_PERCENT: float = 0.5
     
     def __init__(self, db):
         self.db = db
@@ -179,6 +189,45 @@ class ConversionRateService:
             "rate": self.DEFAULT_RATES.get(rate_key, 1),
             "fee_percent": self.DEFAULT_FEE_PERCENT,
             "provider": "pursible"
+        }
+    
+    async def get_specific_rate(
+        self, 
+        from_currency: str, 
+        to_currency: str
+    ) -> Dict[str, Any]:
+        """Get rate for a specific currency pair with full response format"""
+        from_curr = from_currency.upper()
+        to_curr = to_currency.upper()
+        
+        rate_doc = await self.db.conversion_rates.find_one({
+            "from_currency": from_curr,
+            "to_currency": to_curr,
+            "is_active": True
+        }, {"_id": 0})
+        
+        if rate_doc:
+            return {
+                "success": True,
+                "rate": rate_doc.get("rate"),
+                "fee_percentage": rate_doc.get("fee_percentage", self.DEFAULT_FEE_PERCENT),
+                "from_currency": from_curr,
+                "to_currency": to_curr
+            }
+        
+        rate_key = f"{from_curr}-{to_curr}"
+        if rate_key in self.DEFAULT_RATES:
+            return {
+                "success": True,
+                "rate": self.DEFAULT_RATES[rate_key],
+                "fee_percentage": self.DEFAULT_FEE_PERCENT,
+                "from_currency": from_curr,
+                "to_currency": to_curr
+            }
+        
+        return {
+            "success": False,
+            "error": f"No rate available for {from_curr} to {to_curr}"
         }
     
     def calculate_conversion(

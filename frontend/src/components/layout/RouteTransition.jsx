@@ -7,6 +7,8 @@ const routeVariants = {
   exit: { opacity: 0, x: -50 }
 };
 
+const TRANSITION_CONFIG = { duration: 0.3 };
+
 export default function RouteTransition({ children }) {
   const location = useLocation();
 
@@ -17,7 +19,7 @@ export default function RouteTransition({ children }) {
       initial="initial"
       animate="animate"
       exit="exit"
-      transition={{ duration: 0.3 }}
+      transition={TRANSITION_CONFIG}
     >
       {children}
     </motion.div>

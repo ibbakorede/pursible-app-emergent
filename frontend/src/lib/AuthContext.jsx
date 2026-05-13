@@ -1,4 +1,4 @@
-import React, { createContext, useState, useContext, useEffect, useCallback } from 'react';
+import React, { createContext, useState, useContext, useEffect, useCallback, useMemo } from 'react';
 import { base44 } from '@/api/base44Client';
 
 const AuthContext = createContext();
@@ -119,22 +119,39 @@ export const AuthProvider = ({ children }) => {
     setUser(userData);
   }, []);
 
+  // Memoize context value to prevent unnecessary re-renders
+  const contextValue = useMemo(() => ({
+    user, 
+    isAuthenticated, 
+    isLoadingAuth,
+    isLoadingPublicSettings,
+    authError,
+    appPublicSettings,
+    login,
+    loginWithToken,
+    register,
+    logout,
+    navigateToLogin,
+    checkAppState,
+    updateUser
+  }), [
+    user, 
+    isAuthenticated, 
+    isLoadingAuth,
+    isLoadingPublicSettings,
+    authError,
+    appPublicSettings,
+    login,
+    loginWithToken,
+    register,
+    logout,
+    navigateToLogin,
+    checkAppState,
+    updateUser
+  ]);
+
   return (
-    <AuthContext.Provider value={{ 
-      user, 
-      isAuthenticated, 
-      isLoadingAuth,
-      isLoadingPublicSettings,
-      authError,
-      appPublicSettings,
-      login,
-      loginWithToken,
-      register,
-      logout,
-      navigateToLogin,
-      checkAppState,
-      updateUser
-    }}>
+    <AuthContext.Provider value={contextValue}>
       {children}
     </AuthContext.Provider>
   );
