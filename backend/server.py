@@ -32,6 +32,7 @@ from services.seed_service import SeedDataService
 from services.withdrawal_service import WithdrawalService
 from services.swap_service import SwapService
 from services.deposit_service import DepositService
+from services.audit_service import AuditService
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -80,6 +81,7 @@ seed_service = SeedDataService(db)
 withdrawal_service = WithdrawalService(db, wallet_service, transaction_service)
 swap_service = SwapService(db, wallet_service, transaction_service, rate_service)
 deposit_service = DepositService(db)
+audit_service = AuditService(db)
 
 # API Base URLs
 FLW_BASE = "https://api.flutterwave.com/v3"
@@ -547,7 +549,10 @@ async def filter_entities(
 # ═══════════════════════════════════════════════════════════════════════════════
 
 # Entities that only admins can modify
-ADMIN_ONLY_ENTITIES = {"KYCRecord", "Wallet", "Transaction", "ConversionRate", "AuditLog", "AppError"}
+ADMIN_ONLY_ENTITIES = {"KYCRecord", "Wallet", "Transaction", "ConversionRate", "AppError"}
+
+# Entities that are completely immutable - no updates or deletes allowed, even by admins
+IMMUTABLE_ENTITIES = {"AuditLog", "AdminAuditLog"}
 
 # Entities that users can modify if they own them (matched by user_email or user_id)
 USER_OWNED_ENTITIES = {"User", "Goal", "RateAlert", "PushToken", "BiometricCredential", "BankAccount", "Notification"}
@@ -571,6 +576,13 @@ async def check_entity_authorization(
     Check if user is authorized to modify an entity.
     Returns the existing entity if authorized, raises HTTPException otherwise.
     """
+    # Immutable entities - no modifications allowed, ever
+    if entity_name in IMMUTABLE_ENTITIES:
+        raise HTTPException(
+            status_code=403, 
+            detail=f"{entity_name} records are immutable and cannot be modified"
+        )
+    
     # Admin-only entities
     if entity_name in ADMIN_ONLY_ENTITIES:
         if user.get("role") != "admin":
@@ -625,6 +637,13 @@ async def create_entity(
     user: dict = Depends(get_current_user)
 ):
     """Create a new entity - with authorization checks"""
+    # Block creation of immutable entities via generic API
+    if entity_name in IMMUTABLE_ENTITIES:
+        raise HTTPException(
+            status_code=403, 
+            detail=f"{entity_name} records cannot be created via generic API"
+        )
+    
     # Block creation of admin-only entities by non-admins
     if entity_name in ADMIN_ONLY_ENTITIES:
         if user.get("role") != "admin":
@@ -1253,6 +1272,99 @@ async def get_admin_stats(user: dict = Depends(get_admin_user)):
     }
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# ADMIN AUDIT LOGS
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@api_router.get("/admin/audit-logs")
+async def get_audit_logs(
+    admin_user_id: Optional[str] = None,
+    action_type: Optional[str] = None,
+    target_resource_type: Optional[str] = None,
+    target_resource_id: Optional[str] = None,
+    from_date: Optional[str] = None,
+    to_date: Optional[str] = None,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=200),
+    user: dict = Depends(get_admin_user)
+):
+    """
+    Get admin audit logs with filtering and pagination.
+    Admin only - returns immutable audit trail of all admin actions.
+    """
+    from_dt = None
+    to_dt = None
+    
+    if from_date:
+        try:
+            from_dt = datetime.fromisoformat(from_date.replace('Z', '+00:00'))
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid from_date format. Use ISO format.")
+    
+    if to_date:
+        try:
+            to_dt = datetime.fromisoformat(to_date.replace('Z', '+00:00'))
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid to_date format. Use ISO format.")
+    
+    result = await audit_service.get_audit_logs(
+        admin_user_id=admin_user_id,
+        action_type=action_type,
+        target_resource_type=target_resource_type,
+        target_resource_id=target_resource_id,
+        from_date=from_dt,
+        to_date=to_dt,
+        page=page,
+        page_size=page_size,
+    )
+    
+    return result
+
+@api_router.get("/admin/audit-logs/{audit_id}")
+async def get_audit_log_detail(
+    audit_id: str,
+    user: dict = Depends(get_admin_user)
+):
+    """Get a single audit log entry by ID. Admin only."""
+    entry = await audit_service.get_audit_log_by_id(audit_id)
+    if not entry:
+        raise HTTPException(status_code=404, detail="Audit log entry not found")
+    return entry
+
+# Dev-only test endpoint - remove before production
+@api_router.post("/admin/audit-logs/test")
+async def test_audit_log(
+    request: Request,
+    user: dict = Depends(get_admin_user)
+):
+    """
+    DEV ONLY: Create a test audit log entry to verify the system works.
+    Only available when ENV=development.
+    """
+    env = os.environ.get("ENV", "development")
+    if env not in ["development", "dev", "test"]:
+        raise HTTPException(status_code=403, detail="Test endpoint not available in production")
+    
+    audit_id = await audit_service.log_admin_action(
+        admin=user,
+        action_type="system.test",
+        target_resource_type="System",
+        target_resource_id="test-entry",
+        reason="Testing audit log system",
+        metadata={
+            "test": True,
+            "triggered_by": user["email"],
+            "timestamp": get_timestamp()
+        },
+        request=request
+    )
+    
+    return {
+        "success": True,
+        "message": "Test audit log entry created",
+        "audit_id": audit_id
+    }
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # HEALTH CHECK
 # ═══════════════════════════════════════════════════════════════════════════════
 
@@ -1512,6 +1624,10 @@ async def startup_event():
         await db.kyc_records.create_index("user_email")
         await db.bank_accounts.create_index("user_email")
         await db.notifications.create_index([("user_email", 1), ("is_read", 1)])
+        
+        # Audit log indexes
+        await audit_service.ensure_indexes()
+        
         logger.info("Database indexes created")
     except Exception as e:
         logger.error(f"Index creation failed: {e}")
