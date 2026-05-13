@@ -5,6 +5,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { debounce } from 'lodash';
 import { base44 } from '@/api/base44Client';
+import { logger } from '@/lib/logger';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import BottomSheetSelect from '@/components/shared/BottomSheetSelect';
@@ -50,7 +51,8 @@ export default function BankSelectStep({
       } else {
         setLookupError('Account not found. Please check the account number and bank selected.');
       }
-    } catch {
+    } catch (err) {
+      logger.warn('Bank account lookup failed:', err);
       setLookupError('Account not found. Please check the account number and bank selected.');
     } finally {
       setIsLoadingName(false);

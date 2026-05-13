@@ -6,6 +6,7 @@
  * No localStorage/sessionStorage is used for notification data.
  */
 import { base44 } from '../api/apiClient';
+import { logger } from './logger';
 
 // Check if notifications are supported
 export const isNotificationSupported = () => {
@@ -44,8 +45,8 @@ const registerServiceWorker = async () => {
     try {
       const registration = await navigator.serviceWorker.register('/sw.js');
       return registration;
-    } catch {
-      // Service worker registration failed
+    } catch (err) {
+      logger.warn('Service worker registration failed:', err);
     }
   }
 };
@@ -60,8 +61,8 @@ export const getNotificationSettings = async () => {
       security: true,
       marketing: false,
     };
-  } catch {
-    // Return defaults if server call fails
+  } catch (err) {
+    logger.warn('Failed to get notification settings, using defaults:', err);
     return {
       transactions: true,
       rateAlerts: true,
@@ -76,7 +77,8 @@ export const updateNotificationSettings = async (settings) => {
   try {
     const result = await base44.push.updateSettings(settings);
     return result.settings;
-  } catch {
+  } catch (err) {
+    logger.warn('Failed to update notification settings:', err);
     return settings;
   }
 };
@@ -91,8 +93,8 @@ export const showNotification = async (title, options = {}) => {
   let settings = { transactions: true, rateAlerts: true, security: true, marketing: false };
   try {
     settings = await getNotificationSettings();
-  } catch {
-    // Use defaults
+  } catch (err) {
+    logger.warn('Notification settings fetch failed, using defaults:', err);
   }
   
   // Check if this notification type is enabled
@@ -117,8 +119,8 @@ export const showNotification = async (title, options = {}) => {
     } else {
       new Notification(title, defaultOptions);
     }
-  } catch {
-    // Failed to show notification
+  } catch (err) {
+    logger.warn('Failed to show notification:', err);
   }
 };
 
@@ -164,8 +166,8 @@ export const notifySecurity = (event) => {
 export const storeFCMToken = async (token) => {
   try {
     await base44.push.registerToken(token, 'web');
-  } catch {
-    // Silently handle token storage failure
+  } catch (err) {
+    logger.warn('FCM token storage failed:', err);
   }
 };
 
@@ -179,8 +181,8 @@ export const getFCMToken = () => {
 export const clearFCMToken = async () => {
   try {
     await base44.push.deleteToken();
-  } catch {
-    // Silently handle deletion failure
+  } catch (err) {
+    logger.warn('FCM token deletion failed:', err);
   }
 };
 

@@ -6,6 +6,7 @@
  * No localStorage/sessionStorage is used for biometric data.
  */
 import { base44 } from '../api/apiClient';
+import { logger } from './logger';
 
 // Check if WebAuthn is supported
 export const isBiometricSupported = () => {
@@ -19,7 +20,8 @@ export const isBiometricAvailable = async () => {
   try {
     const available = await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
     return available;
-  } catch {
+  } catch (err) {
+    logger.warn('Biometric availability check failed:', err);
     return false;
   }
 };
@@ -29,7 +31,8 @@ export const isBiometricEnabled = async () => {
   try {
     const status = await base44.biometric.status();
     return status.biometric_enabled === true;
-  } catch {
+  } catch (err) {
+    logger.warn('Biometric status check failed:', err);
     return false;
   }
 };
@@ -160,8 +163,8 @@ export const authenticateWithBiometric = async (storedCredentialId = null, store
 export const disableBiometric = async () => {
   try {
     await base44.biometric.disable();
-  } catch {
-    // Silently handle errors during disable
+  } catch (err) {
+    logger.warn('Biometric disable failed:', err);
   }
 };
 

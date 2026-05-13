@@ -25,7 +25,7 @@ export default function Profile() {
     try {
       const userData = await base44.auth.me();
       setUser(userData);
-    } catch {
+    } catch (err) {
       setUser(null);
     }
   }, []);

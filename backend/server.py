@@ -707,7 +707,7 @@ async def verify_bank_account(data: BankVerifyRequest, user: dict = Depends(get_
 
 @functions_router.post("/withdraw")
 async def withdraw(data: WithdrawRequest, user: dict = Depends(get_current_user)):
-    """Process withdrawal - Refactored to use services"""
+    """Process withdrawal - thin handler, business logic in services"""
     try:
         # Check KYC requirement
         kyc_check = await kyc_service.check_kyc_requirement(user["email"])
@@ -716,33 +716,24 @@ async def withdraw(data: WithdrawRequest, user: dict = Depends(get_current_user)
         
         currency = data.currency.upper()
         amount = data.amount
-        
-        # Get wallet and validate balance
-        wallet = await wallet_service.get_wallet(user["email"], currency)
-        if not wallet:
-            raise HTTPException(status_code=400, detail=f"No {currency} wallet found")
-        
-        # Calculate fee and total
         fee = 50 if currency == "NGN" else 0
-        total_needed = amount + fee
         
-        if wallet.get("available_balance", 0) < total_needed:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Insufficient {currency} balance. Need {total_needed}, have {wallet.get('available_balance', 0)}"
-            )
+        # Validate and check balance via service
+        balance_check = await withdrawal_service.check_balance(user["email"], currency, amount, fee)
+        if not balance_check["sufficient"]:
+            raise HTTPException(status_code=400, detail=balance_check["error"])
         
-        # Generate reference
+        # Process withdrawal via service
         reference_id = transaction_service.generate_reference("WD", currency)
         
-        # Debit wallet and move to pending
+        # Debit wallet
         await wallet_service.update_balance(
-            wallet["id"],
-            set_available=wallet["available_balance"] - total_needed,
-            set_pending=wallet.get("pending_balance", 0) + amount
+            balance_check["wallet_id"],
+            set_available=balance_check["available"] - (amount + fee),
+            set_pending=0
         )
         
-        # Create transaction using TransactionConfig
+        # Create transaction
         tx_config = TransactionConfig(
             user_email=user["email"],
             tx_type="withdrawal",
@@ -754,39 +745,19 @@ async def withdraw(data: WithdrawRequest, user: dict = Depends(get_current_user)
             status="processing",
             provider="flutterwave" if currency == "NGN" else "manual",
             description=f"{currency} withdrawal",
-            reference_id=reference_id,
-            metadata={"bank_account_id": data.destination.get("bankAccountId")} if data.destination.get("bankAccountId") else None
+            reference_id=reference_id
         )
         tx = await transaction_service.create_transaction(tx_config)
         
-        # Update status to processing
-        await transaction_service.update_status(tx["id"], "processing", "Processing withdrawal")
-        
-        # Create notification
+        # Send notification
         notif = NotificationTemplates.withdrawal_initiated(amount, currency)
         await notification_service.create_transaction_notification(
             user["email"], notif["title"], notif["message"], tx["id"]
         )
         
-        # In test mode (no Flutterwave key), auto-complete
-        if not FLUTTERWAVE_SECRET_KEY:
-            await transaction_service.update_status(tx["id"], "completed", "Completed (test mode)")
-            # Clear pending
-            await wallet_service.update_balance(
-                wallet["id"],
-                set_pending=max(0, wallet.get("pending_balance", 0))
-            )
-        
         return {
             "success": True,
-            "transaction": {
-                "id": tx["id"],
-                "referenceId": reference_id,
-                "status": "processing",
-                "amount": amount,
-                "currency": currency,
-                "fee": fee
-            },
+            "transaction": {"id": tx["id"], "referenceId": reference_id, "status": "processing", "amount": amount, "currency": currency, "fee": fee},
             "message": "Withdrawal initiated successfully"
         }
         

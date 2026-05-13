@@ -78,7 +78,7 @@ export default function BankAccounts() {
           setLookupBypass(true);
           setIsVerified(true);
         }
-      } catch {
+      } catch (err) {
         // TODO: Remove bypass when Flutterwave keys are live — set isVerified=true for test mode
         setLookupBypass(true);
         setIsVerified(true);

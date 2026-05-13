@@ -41,7 +41,8 @@ export default function Onboarding() {
       
       // Refresh auth state
       await checkAppState();
-    } catch {
+    } catch (err) {
+      logger.warn('Onboarding save failed:', err);
       setError('Could not save your name. Please try again.');
       setLoading(false);
     }

@@ -6,6 +6,7 @@
  * No tokens are stored in localStorage/sessionStorage
  */
 import axios from 'axios';
+import { logger } from '../lib/logger';
 
 const API_BASE_URL = import.meta.env.VITE_BACKEND_URL || '';
 
@@ -116,8 +117,8 @@ const auth = {
   logout: async (redirectUrl = null) => {
     try {
       await api.post('/auth/logout');
-    } catch {
-      // Ignore logout errors
+    } catch (err) {
+      logger.warn('Logout API call failed:', err);
     }
     if (redirectUrl) {
       window.location.href = redirectUrl;

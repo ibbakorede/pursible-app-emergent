@@ -77,7 +77,8 @@ export default function PostLoginPrompts() {
       
       // Show notification prompt next
       setTimeout(() => checkNotificationPrompt(), 1000);
-    } catch {
+    } catch (err) {
+      logger.warn('Biometric enable failed:', err);
       toast.error('Failed to enable biometric login');
     } finally {
       setLoading(false);
@@ -101,7 +102,7 @@ export default function PostLoginPrompts() {
       }
       setShowNotificationPrompt(false);
       markNotificationPromptSeen();
-    } catch {
+    } catch (err) {
       toast.error('Failed to enable notifications');
     } finally {
       setLoading(false);

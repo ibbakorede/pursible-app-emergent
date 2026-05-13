@@ -1,6 +1,12 @@
+/**
+ * DEV ONLY - Seed data for development and testing
+ * This file is only used in development mode and should never be bundled in production.
+ * Test credentials should be set via VITE_DEV_* environment variables.
+ */
+
 export const TEST_CREDENTIALS = {
-  email: 'testpaysible@gmail.com',
-  password: 'Test1234!',
+  email: import.meta.env.VITE_DEV_TEST_EMAIL || 'devtest@example.com',
+  password: import.meta.env.VITE_DEV_TEST_PASSWORD || '',
   full_name: 'Test User',
 };
 

@@ -18,6 +18,8 @@
  *   (all other fields already existed)
  *
  * Balance (new)
+ */
+import { logger } from '../lib/logger';
  *   - user_email:   String   — lookup key, matches Base44 auth email
  *   - usd:          Number   — USD balance
  *   - usdc:         Number   — USDC balance
@@ -67,8 +69,9 @@ export async function logError({ functionName, errorMessage, userEmail, provider
       ...(userEmail  && { user_email: userEmail }),
       ...(provider   && { provider }),
     });
-  } catch {
-    // Silently swallow — error logging must never crash the caller
+  } catch (err) {
+    // Error logging must never crash the caller - log to console only
+    logger.warn('Failed to log error to backend:', err);
   }
 }
 

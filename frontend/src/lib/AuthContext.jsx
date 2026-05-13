@@ -1,5 +1,6 @@
 import React, { createContext, useState, useContext, useEffect, useCallback, useMemo } from 'react';
 import { base44 } from '@/api/base44Client';
+import { logger } from './logger';
 
 const AuthContext = createContext();
 
@@ -30,8 +31,9 @@ export const AuthProvider = ({ children }) => {
         const currentUser = await base44.auth.me();
         setUser(currentUser);
         setIsAuthenticated(true);
-      } catch {
+      } catch (err) {
         // No valid session - cookie invalid or expired
+        logger.debug('Auth session check failed:', err);
         setIsAuthenticated(false);
         setUser(null);
       }
@@ -103,8 +105,8 @@ export const AuthProvider = ({ children }) => {
     // Clear push token and biometric on logout
     try {
       await base44.push.deleteToken();
-    } catch {
-      // Ignore push token deletion errors
+    } catch (err) {
+      logger.warn('Push token deletion on logout failed:', err);
     }
     
     // Server clears httpOnly cookie
