@@ -186,7 +186,7 @@ export default function TransactionDetail() {
             </div>
             <div className="p-5 space-y-0">
               {tx.timeline.map((entry, i) => (
-                <div key={i} className="flex gap-3">
+                <div key={entry.timestamp || `timeline-${i}`} className="flex gap-3">
                   <div className="flex flex-col items-center">
                     <div className={`w-3 h-3 rounded-full mt-1 flex-shrink-0 ${i === tx.timeline.length - 1 ? 'bg-primary ring-4 ring-primary/20' : 'bg-border'}`} />
                     {i < tx.timeline.length - 1 && <div className="w-px flex-1 bg-border mt-1 mb-1 min-h-[2rem]" />}

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { useAuth } from '@/lib/AuthContext';
@@ -438,11 +438,11 @@ export default function WithdrawNGN() {
         {/* Info badges */}
         <div className="grid grid-cols-3 gap-3">
           {[
-            { icon: Shield, label: 'Secure', sub: 'Bank-grade encryption' },
-            { icon: Clock, label: '1–24 hrs', sub: 'Estimated arrival' },
-            { icon: Zap, label: '₦50 fee', sub: 'Flat processing fee' },
-          ].map(({ icon: Icon, label, sub }, idx) => (
-            <div key={idx} className="bg-card border border-border rounded-xl p-3 text-center">
+            { id: 'secure', icon: Shield, label: 'Secure', sub: 'Bank-grade encryption' },
+            { id: 'time', icon: Clock, label: '1–24 hrs', sub: 'Estimated arrival' },
+            { id: 'fee', icon: Zap, label: '₦50 fee', sub: 'Flat processing fee' },
+          ].map(({ id, icon: Icon, label, sub }) => (
+            <div key={id} className="bg-card border border-border rounded-xl p-3 text-center">
               <Icon className="w-4 h-4 text-purple-600 mx-auto mb-1.5" />
               <p className="text-xs font-semibold">{label}</p>
               <p className="text-[10px] text-muted-foreground leading-tight">{sub}</p>
@@ -510,34 +510,41 @@ function BankSelectStep({ bankAccounts, selectedBankId, setSelectedBankId, onBac
   const [lookupError, setLookupError] = useState('');
   const [isVerified, setIsVerified] = useState(false);
 
+  // Memoized lookup function to avoid recreating on each render
+  const lookupAccount = useCallback(async (accountNumber, bankName) => {
+    setIsLoadingName(true);
+    setLookupError('');
+    setIsVerified(false);
+    setForm(prev => ({ ...prev, account_name: '' }));
+    try {
+      const response = await base44.functions.invoke('verifyBankAccount', {
+        accountNumber,
+        bankName,
+      });
+      if (response?.success && response.accountName) {
+        setForm(prev => ({ ...prev, account_name: response.accountName }));
+        setIsVerified(true);
+      } else {
+        setLookupError('Account not found. Please check the account number and bank selected.');
+      }
+    } catch {
+      setLookupError('Account not found. Please check the account number and bank selected.');
+    } finally {
+      setIsLoadingName(false);
+    }
+  }, []);
+
   // Auto-lookup account name when both bank and 10-digit account are set
   useEffect(() => {
     if (form.account_number.length !== 10 || !form.bank_name) return;
-    const lookup = debounce(async () => {
-      setIsLoadingName(true);
-      setLookupError('');
-      setIsVerified(false);
-      setForm(prev => ({ ...prev, account_name: '' }));
-      try {
-        const response = await base44.functions.invoke('verifyBankAccount', {
-          accountNumber: form.account_number,
-          bankName: form.bank_name,
-        });
-        if (response?.success && response.accountName) {
-          setForm(prev => ({ ...prev, account_name: response.accountName }));
-          setIsVerified(true);
-        } else {
-          setLookupError('Account not found. Please check the account number and bank selected.');
-        }
-      } catch {
-        setLookupError('Account not found. Please check the account number and bank selected.');
-      } finally {
-        setIsLoadingName(false);
-      }
+    
+    const debouncedLookup = debounce(() => {
+      lookupAccount(form.account_number, form.bank_name);
     }, 800);
-    lookup();
-    return () => lookup.cancel();
-  }, [form.account_number, form.bank_name]);
+    
+    debouncedLookup();
+    return () => debouncedLookup.cancel();
+  }, [form.account_number, form.bank_name, lookupAccount]);
 
   const addAccount = useMutation({
     mutationFn: () => base44.entities.BankAccount.create({

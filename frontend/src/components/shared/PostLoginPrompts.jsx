@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Fingerprint, X, Shield } from 'lucide-react';
+import { Fingerprint, Shield } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/lib/AuthContext';
 import {
@@ -18,13 +18,32 @@ import {
   markNotificationPromptSeen,
 } from '@/lib/pushNotifications';
 
-const BIOMETRIC_PROMPT_KEY = 'paysible_biometric_prompt_seen';
+// Use sessionStorage for prompt tracking (non-persistent, session-scoped)
+const BIOMETRIC_PROMPT_KEY = 'pursible_biometric_prompt_seen';
+
+/**
+ * Secure prompt storage utilities
+ * Uses sessionStorage for session-scoped tracking
+ */
+const promptStorage = {
+  hasSeen: (key) => sessionStorage.getItem(key) === 'true',
+  markSeen: (key) => sessionStorage.setItem(key, 'true'),
+};
 
 export default function PostLoginPrompts() {
   const { user, isAuthenticated } = useAuth();
   const [showBiometricPrompt, setShowBiometricPrompt] = useState(false);
   const [showNotificationPrompt, setShowNotificationPrompt] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  const checkNotificationPrompt = useCallback(() => {
+    const notifSupported = isNotificationSupported();
+    const notifPermission = getNotificationPermission();
+    const notifPromptSeen = hasSeenNotificationPrompt();
+    if (notifSupported && notifPermission === 'default' && !notifPromptSeen) {
+      setShowNotificationPrompt(true);
+    }
+  }, []);
 
   useEffect(() => {
     if (!isAuthenticated || !user) return;
@@ -33,7 +52,7 @@ export default function PostLoginPrompts() {
       // Check biometric prompt
       const biometricAvailable = await isBiometricAvailable();
       const biometricEnabled = isBiometricEnabled();
-      const biometricPromptSeen = localStorage.getItem(BIOMETRIC_PROMPT_KEY) === 'true';
+      const biometricPromptSeen = promptStorage.hasSeen(BIOMETRIC_PROMPT_KEY);
 
       if (biometricAvailable && !biometricEnabled && !biometricPromptSeen) {
         // Delay showing prompt for better UX
@@ -42,17 +61,11 @@ export default function PostLoginPrompts() {
       }
 
       // Check notification prompt
-      const notifSupported = isNotificationSupported();
-      const notifPermission = getNotificationPermission();
-      const notifPromptSeen = hasSeenNotificationPrompt();
-
-      if (notifSupported && notifPermission === 'default' && !notifPromptSeen) {
-        setTimeout(() => setShowNotificationPrompt(true), 2000);
-      }
+      setTimeout(() => checkNotificationPrompt(), 2000);
     };
 
     checkPrompts();
-  }, [isAuthenticated, user]);
+  }, [isAuthenticated, user, checkNotificationPrompt]);
 
   const handleEnableBiometric = async () => {
     setLoading(true);
@@ -60,17 +73,10 @@ export default function PostLoginPrompts() {
       await registerBiometric(user.email, user.full_name || user.email);
       toast.success('Biometric login enabled!');
       setShowBiometricPrompt(false);
-      localStorage.setItem(BIOMETRIC_PROMPT_KEY, 'true');
+      promptStorage.markSeen(BIOMETRIC_PROMPT_KEY);
       
       // Show notification prompt next
-      setTimeout(() => {
-        const notifSupported = isNotificationSupported();
-        const notifPermission = getNotificationPermission();
-        const notifPromptSeen = hasSeenNotificationPrompt();
-        if (notifSupported && notifPermission === 'default' && !notifPromptSeen) {
-          setShowNotificationPrompt(true);
-        }
-      }, 1000);
+      setTimeout(() => checkNotificationPrompt(), 1000);
     } catch (error) {
       console.error('Failed to enable biometric:', error);
       toast.error('Failed to enable biometric login');
@@ -81,17 +87,10 @@ export default function PostLoginPrompts() {
 
   const handleSkipBiometric = () => {
     setShowBiometricPrompt(false);
-    localStorage.setItem(BIOMETRIC_PROMPT_KEY, 'true');
+    promptStorage.markSeen(BIOMETRIC_PROMPT_KEY);
     
     // Show notification prompt next
-    setTimeout(() => {
-      const notifSupported = isNotificationSupported();
-      const notifPermission = getNotificationPermission();
-      const notifPromptSeen = hasSeenNotificationPrompt();
-      if (notifSupported && notifPermission === 'default' && !notifPromptSeen) {
-        setShowNotificationPrompt(true);
-      }
-    }, 500);
+    setTimeout(() => checkNotificationPrompt(), 500);
   };
 
   const handleEnableNotifications = async () => {
@@ -103,7 +102,7 @@ export default function PostLoginPrompts() {
       }
       setShowNotificationPrompt(false);
       markNotificationPromptSeen();
-    } catch (error) {
+    } catch {
       toast.error('Failed to enable notifications');
     } finally {
       setLoading(false);

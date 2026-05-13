@@ -4,16 +4,20 @@ import { useBiometricAuth } from './useBiometricAuth';
 const BIOMETRIC_LOCK_TIMEOUT = 5 * 60 * 1000; // 5 minutes
 const STORAGE_KEY = 'biometric_lock_timestamp';
 
+/**
+ * Hook for biometric lock functionality
+ * Uses sessionStorage for lock timestamp (security-sensitive, session-scoped)
+ */
 export const useBiometricLock = () => {
   const [showBiometricModal, setShowBiometricModal] = useState(false);
   const [pendingAction, setPendingAction] = useState(null);
   const { checkAvailability } = useBiometricAuth();
 
   const isLocked = useCallback(() => {
-    const lastAuth = localStorage.getItem(STORAGE_KEY);
+    const lastAuth = sessionStorage.getItem(STORAGE_KEY);
     if (!lastAuth) return true;
     
-    const timeSinceAuth = Date.now() - parseInt(lastAuth);
+    const timeSinceAuth = Date.now() - parseInt(lastAuth, 10);
     return timeSinceAuth > BIOMETRIC_LOCK_TIMEOUT;
   }, []);
 
@@ -37,7 +41,7 @@ export const useBiometricLock = () => {
   }, [checkAvailability, isLocked]);
 
   const handleBiometricSuccess = useCallback(() => {
-    localStorage.setItem(STORAGE_KEY, Date.now().toString());
+    sessionStorage.setItem(STORAGE_KEY, Date.now().toString());
     
     if (pendingAction?.callback) {
       pendingAction.callback();
@@ -48,7 +52,7 @@ export const useBiometricLock = () => {
   }, [pendingAction]);
 
   const clearLock = useCallback(() => {
-    localStorage.removeItem(STORAGE_KEY);
+    sessionStorage.removeItem(STORAGE_KEY);
   }, []);
 
   return {

@@ -3,11 +3,11 @@ import { Link } from 'react-router-dom';
 import { useState } from 'react';
 
 const FAQS = [
-  { q: 'How long do withdrawals take?', a: 'NGN withdrawals typically arrive within 1–24 hours depending on your bank.' },
-  { q: 'What are the conversion fees?', a: 'A small percentage fee applies per conversion. Check the rate displayed before confirming.' },
-  { q: 'How do I complete KYC?', a: 'Go to Profile → KYC Verification and follow the steps to upload your documents.' },
-  { q: 'Can I add multiple bank accounts?', a: 'Yes, you can link up to 5 Nigerian bank accounts for withdrawals.' },
-  { q: 'What currencies are supported?', a: 'We support USD, USDC, USDT, and NGN wallets with live conversions between them.' },
+  { id: 'withdrawal-time', q: 'How long do withdrawals take?', a: 'NGN withdrawals typically arrive within 1–24 hours depending on your bank.' },
+  { id: 'conversion-fees', q: 'What are the conversion fees?', a: 'A small percentage fee applies per conversion. Check the rate displayed before confirming.' },
+  { id: 'kyc-complete', q: 'How do I complete KYC?', a: 'Go to Profile → KYC Verification and follow the steps to upload your documents.' },
+  { id: 'multiple-banks', q: 'Can I add multiple bank accounts?', a: 'Yes, you can link up to 5 Nigerian bank accounts for withdrawals.' },
+  { id: 'supported-currencies', q: 'What currencies are supported?', a: 'We support USD, USDC, USDT, and NGN wallets with live conversions between them.' },
 ];
 
 export default function Support() {
@@ -106,16 +106,16 @@ export default function Support() {
         <div>
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Frequently Asked Questions</p>
           <div className="bg-card border border-border rounded-2xl divide-y divide-border overflow-hidden">
-            {FAQS.map((faq, i) => (
-              <div key={i}>
+            {FAQS.map((faq) => (
+              <div key={faq.id}>
                 <button
-                  onClick={() => setOpenFaq(openFaq === i ? null : i)}
+                  onClick={() => setOpenFaq(openFaq === faq.id ? null : faq.id)}
                   className="w-full flex items-center justify-between px-4 py-4 text-left hover:bg-muted/50 transition-colors"
                 >
                   <p className="text-sm font-medium pr-3">{faq.q}</p>
-                  <ChevronRight className={`w-4 h-4 text-muted-foreground flex-shrink-0 transition-transform ${openFaq === i ? 'rotate-90' : ''}`} />
+                  <ChevronRight className={`w-4 h-4 text-muted-foreground flex-shrink-0 transition-transform ${openFaq === faq.id ? 'rotate-90' : ''}`} />
                 </button>
-                {openFaq === i && (
+                {openFaq === faq.id && (
                   <div className="px-4 pb-4">
                     <p className="text-sm text-muted-foreground leading-relaxed">{faq.a}</p>
                   </div>

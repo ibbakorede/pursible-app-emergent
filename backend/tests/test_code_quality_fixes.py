@@ -9,9 +9,9 @@ import time
 
 BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://backend-api-hub-1.preview.emergentagent.com')
 
-# Test credentials
-TEST_EMAIL = "codeaudit@pursible.com"
-TEST_PASSWORD = "Test123!"
+# Test credentials from environment variables (with fallbacks for local testing only)
+TEST_EMAIL = os.environ.get('TEST_USER_EMAIL', 'codeaudit@pursible.com')
+TEST_PASSWORD = os.environ.get('TEST_USER_PASSWORD', 'Test123!')
 
 
 class TestHealthEndpoint:
@@ -201,7 +201,7 @@ class TestWalletOperations:
         
         assert response.status_code == 200
         data = response.json()
-        assert data["success"] == True
+        assert data["success"] is True
         assert "balance" in data
         assert "USD" in data["balance"]
         assert "NGN" in data["balance"]
@@ -217,7 +217,7 @@ class TestConversionRates:
         
         assert response.status_code == 200
         data = response.json()
-        assert data["success"] == True
+        assert data["success"] is True
         assert "rates" in data
         assert len(data["rates"]) > 0
         print(f"✓ Found {len(data['rates'])} conversion rates")
@@ -228,7 +228,7 @@ class TestConversionRates:
         
         assert response.status_code == 200
         data = response.json()
-        assert data["success"] == True
+        assert data["success"] is True
         assert "rate" in data
         assert data["rate"] > 0
         print(f"✓ USD→NGN rate: {data['rate']}")
@@ -378,7 +378,7 @@ class TestBankAccounts:
         
         assert response.status_code == 200
         data = response.json()
-        assert data["success"] == True
+        assert data["success"] is True
         assert "accountName" in data
         # Note: This is MOCKED data since no Flutterwave API key
         print(f"✓ Bank verification (MOCKED): {data['accountName']}")
@@ -436,7 +436,7 @@ class TestKYC:
         
         assert response.status_code == 200
         data = response.json()
-        assert data["success"] == True
+        assert data["success"] is True
         # In test mode (no Dojah key), KYC auto-approves
         assert data["status"] in ["approved", "in_review"]
         print(f"✓ KYC submission: {data['status']} (MOCKED - auto-approve)")
@@ -493,7 +493,7 @@ class TestCurrencySwap:
             if data.get("kycBlocked"):
                 print("✓ Swap requires KYC verification (expected)")
             elif "quote" in data:
-                assert data["success"] == True
+                assert data["success"] is True
                 assert "quote" in data
                 assert data["quote"]["fromCurrency"] == "USD"
                 assert data["quote"]["toCurrency"] == "NGN"
@@ -540,7 +540,7 @@ class TestWithdrawal:
         if response.status_code == 400:
             # Insufficient balance error
             assert "detail" in data or "error" in data
-            print(f"✓ Withdrawal validation: insufficient balance (expected)")
+            print("✓ Withdrawal validation: insufficient balance (expected)")
         elif data.get("kycBlocked"):
             print("✓ Withdrawal requires KYC verification (expected)")
         elif not data.get("success"):

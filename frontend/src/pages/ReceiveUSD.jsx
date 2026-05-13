@@ -271,11 +271,11 @@ export default function ReceiveUSD() {
         {/* Info badges */}
         <div className="grid grid-cols-3 gap-3">
           {[
-            { icon: Shield, label: 'Secure', sub: 'End-to-end encrypted' },
-            { icon: Zap, label: 'Fast', sub: 'Multiple channels' },
-            { icon: ArrowDownToLine, label: 'No limit', sub: 'Deposit any amount' },
-          ].map(({ icon: Icon, label, sub }, idx) => (
-            <div key={idx} className="bg-card border border-border rounded-xl p-3 text-center">
+            { id: 'secure', icon: Shield, label: 'Secure', sub: 'End-to-end encrypted' },
+            { id: 'fast', icon: Zap, label: 'Fast', sub: 'Multiple channels' },
+            { id: 'no-limit', icon: ArrowDownToLine, label: 'No limit', sub: 'Deposit any amount' },
+          ].map(({ id, icon: Icon, label, sub }) => (
+            <div key={id} className="bg-card border border-border rounded-xl p-3 text-center">
               <Icon className="w-4 h-4 text-primary mx-auto mb-1.5" />
               <p className="text-xs font-semibold">{label}</p>
               <p className="text-[10px] text-muted-foreground leading-tight">{sub}</p>
@@ -324,8 +324,8 @@ export default function ReceiveUSD() {
                   { step: '1', text: 'Copy the account details above' },
                   { step: '2', text: 'Initiate a transfer from your bank or wallet' },
                   { step: '3', text: 'Your balance updates once funds are confirmed' },
-                ].map(({ step, text }, idx) => (
-                  <div key={idx} className="flex items-center gap-3">
+                ].map(({ step, text }) => (
+                  <div key={`step-${step}`} className="flex items-center gap-3">
                     <div className="w-7 h-7 rounded-full bg-primary text-primary-foreground text-xs font-bold flex items-center justify-center flex-shrink-0">
                       {step}
                     </div>

@@ -292,12 +292,12 @@ export default function ConvertFunds() {
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Conversion Breakdown</p>
             </div>
             {[
-              ['You send', formatCurrency(numAmount, fromCurrency), false, false],
-              [`Fee (${fee}%)`, `-${formatCurrency(feeAmount, fromCurrency)}`, true, false],
-              ['Exchange rate', `1 ${fromCurrency} = ${rate.toLocaleString()} ${toCurrency}`, false, false],
-              ['You receive', formatCurrency(receiveAmount, toCurrency), false, true],
-            ].map(([label, value, muted, highlight], i) => (
-              <div key={i} className={`flex items-center justify-between px-4 py-3.5 border-b border-border last:border-0 ${highlight ? 'bg-emerald-50/50' : ''}`}>
+              { id: 'send', label: 'You send', value: formatCurrency(numAmount, fromCurrency), muted: false, highlight: false },
+              { id: 'fee', label: `Fee (${fee}%)`, value: `-${formatCurrency(feeAmount, fromCurrency)}`, muted: true, highlight: false },
+              { id: 'rate', label: 'Exchange rate', value: `1 ${fromCurrency} = ${rate.toLocaleString()} ${toCurrency}`, muted: false, highlight: false },
+              { id: 'receive', label: 'You receive', value: formatCurrency(receiveAmount, toCurrency), muted: false, highlight: true },
+            ].map(({ id, label, value, muted, highlight }) => (
+              <div key={id} className={`flex items-center justify-between px-4 py-3.5 border-b border-border last:border-0 ${highlight ? 'bg-emerald-50/50' : ''}`}>
                 <span className={`text-sm ${muted ? 'text-muted-foreground' : ''}`}>{label}</span>
                 <span className={`text-sm font-semibold tabular-nums ${highlight ? 'text-emerald-600 text-base' : muted ? 'text-muted-foreground' : ''}`}>{value}</span>
               </div>

@@ -204,8 +204,8 @@ export default function KYCFlow() {
             <p className="text-sm font-semibold text-center">We could not verify your identity</p>
             {rejectionReason && (
               <div className="bg-red-50 border border-red-200 rounded-xl p-3.5 text-xs text-red-700 leading-relaxed">
-                {rejectionReason.split(' | ').map((msg, i) => (
-                  <p key={i} className={i > 0 ? 'mt-1.5' : ''}>{msg}</p>
+                            {rejectionReason.split(' | ').map((msg, i) => (
+                  <p key={`rejection-${i}-${msg.slice(0, 10)}`} className={i > 0 ? 'mt-1.5' : ''}>{msg}</p>
                 ))}
               </div>
             )}
@@ -349,8 +349,8 @@ export default function KYCFlow() {
 
             {/* Progress */}
             <div className="flex gap-1.5">
-              {progressSteps.map((_, i) => (
-                <div key={i} className={`flex-1 h-1.5 rounded-full transition-all ${i < step ? 'bg-primary' : 'bg-muted'}`} />
+              {progressSteps.map((stepName, i) => (
+                <div key={`progress-step-${stepName}`} className={`flex-1 h-1.5 rounded-full transition-all ${i < step ? 'bg-primary' : 'bg-muted'}`} />
               ))}
             </div>
 

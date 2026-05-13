@@ -83,7 +83,7 @@ export default function AdminOverview() {
             <ResponsiveContainer width="100%" height={200}>
               <PieChart>
                 <Pie data={kycData} cx="50%" cy="50%" innerRadius={50} outerRadius={80} dataKey="value" label={({ name, value }) => `${name}: ${value}`}>
-                  {kycData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                  {kycData.map((entry) => <Cell key={entry.name} fill={COLORS[kycData.indexOf(entry) % COLORS.length]} />)}
                 </Pie>
                 <Tooltip />
               </PieChart>

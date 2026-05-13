@@ -229,6 +229,28 @@
 
 ## Changelog
 
+### May 13, 2026 (v1.0.3)
+- **Code Quality Audit Fixes - Round 2:**
+  - **Security Fixes:**
+    - Moved test credentials to environment variables in `test_code_quality_fixes.py`
+    - Migrated biometric lock timestamp from localStorage to sessionStorage (`useBiometricLock.js`)
+    - Migrated prompt tracking to sessionStorage (`PostLoginPrompts.jsx`)
+    - Updated Onboarding.jsx to use sessionStorage for auth token retrieval
+  - **Index as Key Fixes (9 instances):**
+    - `AdminOverview.jsx` - KYC pie chart cells now use `entry.name` as key
+    - `TransactionDetail.jsx` - Timeline entries use `entry.timestamp` as key
+    - `ReceiveUSD.jsx` - Info badges and steps use unique IDs
+    - `KYCFlow.jsx` - Progress steps and rejection messages use stable keys
+    - `Support.jsx` - FAQ items now have unique IDs
+    - `WithdrawNGN.jsx` - Info badges use stable IDs
+    - `ConvertFunds.jsx` - Conversion breakdown rows use stable IDs
+  - **Hook Dependency Fixes:**
+    - `WithdrawNGN.jsx` - Refactored bank lookup with useCallback pattern
+    - `PostLoginPrompts.jsx` - Extracted notification check into useCallback
+  - **Python Linting Fixes:**
+    - Fixed `== True` comparisons to use `is True` (Pythonic style)
+- **All linting passed:** 0 errors across all files
+
 ### May 12, 2026 (v1.0.2)
 - **Code Quality Audit Fixes Applied:**
   - Item 2: Fixed missing React hook dependencies in WithdrawNGN, WalletOverview, RateAlerts, Transactions

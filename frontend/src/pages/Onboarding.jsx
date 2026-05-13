@@ -1,10 +1,17 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useAuth } from '@/lib/AuthContext';
 import axios from 'axios';
 
 const API_BASE_URL = import.meta.env.VITE_BACKEND_URL || '';
+
+/**
+ * Get auth token from sessionStorage (secure storage)
+ */
+const getAuthToken = () => {
+  return sessionStorage.getItem('auth_token');
+};
 
 export default function Onboarding() {
   const [firstName, setFirstName] = useState('');
@@ -13,7 +20,7 @@ export default function Onboarding() {
   const [error, setError] = useState('');
   const { checkAppState, updateUser, user } = useAuth();
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = useCallback(async (e) => {
     e.preventDefault();
     if (!firstName.trim() || !lastName.trim()) {
       setError('Please enter both your first and last name.');
@@ -22,10 +29,10 @@ export default function Onboarding() {
     setLoading(true);
     setError('');
     try {
-      const token = localStorage.getItem('auth_token');
+      const token = getAuthToken();
       const fullName = `${firstName.trim()} ${lastName.trim()}`;
       
-      const response = await axios.patch(
+      await axios.patch(
         `${API_BASE_URL}/api/auth/me`,
         { full_name: fullName },
         { headers: { Authorization: `Bearer ${token}` } }
@@ -41,7 +48,7 @@ export default function Onboarding() {
       setError('Could not save your name. Please try again.');
       setLoading(false);
     }
-  };
+  }, [firstName, lastName, user, updateUser, checkAppState]);
 
   return (
     <div className="fixed inset-0 flex items-center justify-center bg-background px-4">
