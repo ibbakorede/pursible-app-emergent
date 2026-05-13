@@ -31,6 +31,11 @@ export default function QuickConverter() {
     return num * currentRate;
   }, [amount, currentRate]);
 
+  // Memoize filtered currencies for 'to' select
+  const toCurrencies = useMemo(() => {
+    return CURRENCIES.filter(c => c !== 'USD' && c !== from);
+  }, [from]);
+
   const swap = () => { setFrom(to); setTo(from); };
 
   const fmt = (val, currency) => {
@@ -75,7 +80,7 @@ export default function QuickConverter() {
            onChange={e => setTo(e.target.value)}
            className="text-xs font-semibold bg-muted px-3 py-2.5 rounded-xl border border-input outline-none cursor-pointer"
          >
-           {CURRENCIES.filter(c => c !== 'USD' && c !== from).map(c => <option key={c} value={c}>{c}</option>)}
+           {toCurrencies.map(c => <option key={c} value={c}>{c}</option>)}
          </select>
       </div>
 

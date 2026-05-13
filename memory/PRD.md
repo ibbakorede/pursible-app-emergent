@@ -229,6 +229,26 @@
 
 ## Changelog
 
+### May 13, 2026 (v1.0.6)
+- **Console Statement Cleanup:**
+  - Removed debug `console.log` statements from production code:
+    - `AuthContext.jsx` - Removed login/register debug logs
+    - `Referrals.jsx` - Removed referral code debug logs
+    - `Goals.jsx` - Removed goal mutation debug logs
+    - `RateAlerts.jsx` - Removed alert creation debug logs
+    - `Login.jsx` - Removed authentication debug logs
+    - `biometricAuth.js` - Removed biometric debug logs
+    - `PostLoginPrompts.jsx` - Removed prompt debug logs
+    - `DevLogin.jsx` - Removed dev login debug logs
+    - `Onboarding.jsx` - Removed onboarding debug logs
+  - Kept critical `console.error` for production debugging
+  - Kept service worker logs (necessary for PWA)
+- **useMemo Optimizations:**
+  - `QuickConverter.jsx` - Memoized currency filter for 'to' select
+  - Filter/map operations now cached to prevent re-computation on render
+- **Fixed:** Updated `Referrals.jsx` link from `paysible.com` to `pursible.com`
+- **All linting passed:** 0 errors
+
 ### May 13, 2026 (v1.0.5)
 - **Large Component Splitting Complete:**
   - **ConvertFunds.jsx** (574 → 150 lines):

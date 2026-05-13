@@ -38,7 +38,6 @@ export default function Goals() {
   // ── Mutations ─────────────────────────────────────────────────────────────
   const createMutation = useMutation({
     mutationFn: (goalData) => {
-      console.log('[Goals] create — user.email:', user.email, 'goalData:', goalData);
       return base44.entities.Goal.create({
         ...goalData,
         user_email: user.email,
@@ -51,15 +50,13 @@ export default function Goals() {
       setEditingGoal(null);
       toast.success('Goal created successfully!');
     },
-    onError: (err) => {
-      console.error('[Goals] create error:', err);
+    onError: () => {
       toast.error('Failed to create goal');
     },
   });
 
   const updateMutation = useMutation({
     mutationFn: (goalData) => {
-      console.log('[Goals] update — id:', editingGoal.id, 'goalData:', goalData);
       return base44.entities.Goal.update(editingGoal.id, goalData);
     },
     onSuccess: () => {
@@ -68,8 +65,7 @@ export default function Goals() {
       setEditingGoal(null);
       toast.success('Goal updated successfully!');
     },
-    onError: (err) => {
-      console.error('[Goals] update error:', err);
+    onError: () => {
       toast.error('Failed to update goal');
     },
   });

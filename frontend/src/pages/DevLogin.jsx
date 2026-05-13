@@ -24,7 +24,6 @@ export default function DevLogin() {
       await base44.auth.loginViaEmailPassword(email, password);
       window.location.reload();
     } catch (err) {
-      console.error('[DevLogin] login error:', err);
       setError(err?.message || 'Login failed. Check credentials and try again.');
     } finally {
       setLoading(false);

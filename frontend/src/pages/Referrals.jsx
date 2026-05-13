@@ -35,37 +35,28 @@ export default function Referrals() {
   // ── Save referral code — called once if user.referral_code is missing ─────
   const saveCode = useMutation({
     mutationFn: (code) => {
-      console.log('[Referrals] saveCode — user.email:', user.email, 'code:', code);
       return base44.auth.updateMe({ referral_code: code });
     },
     onSuccess: () => {
-      console.log('[Referrals] saveCode succeeded — invalidating [me]');
-      // Invalidate so useQuery(['me']) refetches and user.referral_code updates in the UI
       queryClient.invalidateQueries({ queryKey: ['me'] });
-    },
-    onError: (err) => {
-      console.error('[Referrals] saveCode error:', err);
     },
   });
 
   // ── Auto-generate referral code on first visit ────────────────────────────
   useEffect(() => {
     if (!user) return;
-    console.log('[Referrals] user loaded:', user.email, '| referral_code:', user.referral_code);
     if (!user.referral_code && !saveCode.isPending) {
       const code = generateCode();
-      console.log('[Referrals] generating code:', code);
       saveCode.mutate(code);
     }
-  }, [user?.email, user?.referral_code]);
+  }, [user?.email, user?.referral_code, saveCode]);
 
   // ── Loading guard ─────────────────────────────────────────────────────────
   if (!user || isLoading) return <LoadingSpinner />;
 
   // ── Derived data ──────────────────────────────────────────────────────────
   const referralCode = user.referral_code || '';
-  const referralLink = referralCode ? `https://paysible.com/join?ref=${referralCode}` : '';
-  console.log('[Referrals] render — referralCode:', referralCode);
+  const referralLink = referralCode ? `https://pursible.com/join?ref=${referralCode}` : '';
 
   const completedReferrals = referrals.filter(r => r.status === 'completed');
   const pendingReferrals = referrals.filter(r => r.status === 'pending');

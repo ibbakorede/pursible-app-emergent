@@ -91,7 +91,6 @@ export const AuthProvider = ({ children }) => {
         setUser(null);
       }
     } catch (error) {
-      console.error('Auth check failed:', error);
       setAuthError({
         type: 'unknown',
         message: error.message || 'An unexpected error occurred'
@@ -108,15 +107,12 @@ export const AuthProvider = ({ children }) => {
 
   const login = useCallback(async (email, password) => {
     try {
-      console.log('[AuthContext] Calling login API for:', email);
       const response = await base44.auth.login(email, password);
-      console.log('[AuthContext] Login response:', response);
       setUser(response.user);
       setIsAuthenticated(true);
       setAuthError(null);
       return response;
     } catch (error) {
-      console.error('[AuthContext] Login error:', error);
       const errorMessage = error.response?.data?.detail || error.message || 'Login failed';
       setAuthError({ type: 'login_failed', message: errorMessage });
       throw error;
@@ -132,22 +128,18 @@ export const AuthProvider = ({ children }) => {
       setAuthError(null);
       return { success: true };
     } catch (error) {
-      console.error('[AuthContext] Login with token error:', error);
       throw error;
     }
   }, []);
 
   const register = useCallback(async (data) => {
     try {
-      console.log('[AuthContext] Calling register API for:', data.email);
       const response = await base44.auth.register(data);
-      console.log('[AuthContext] Register response:', response);
       setUser(response.user);
       setIsAuthenticated(true);
       setAuthError(null);
       return response;
     } catch (error) {
-      console.error('[AuthContext] Register error:', error);
       const errorMessage = error.response?.data?.detail || error.message || 'Registration failed';
       setAuthError({ type: 'registration_failed', message: errorMessage });
       throw error;

@@ -60,8 +60,7 @@ export const isBiometricAvailable = async () => {
   try {
     const available = await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
     return available;
-  } catch (error) {
-    console.error('Biometric availability check failed:', error);
+  } catch {
     return false;
   }
 };
@@ -154,7 +153,6 @@ export const registerBiometric = async (userEmail, userName) => {
 
     return true;
   } catch (error) {
-    console.error('Biometric registration failed:', error);
     throw error;
   }
 };
@@ -192,7 +190,6 @@ export const authenticateWithBiometric = async () => {
     const userEmail = localStorage.getItem(BIOMETRIC_USER_KEY);
     return { success: true, email: userEmail };
   } catch (error) {
-    console.error('Biometric authentication failed:', error);
     throw error;
   }
 };

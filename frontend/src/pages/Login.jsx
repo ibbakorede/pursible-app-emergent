@@ -69,7 +69,6 @@ export default function Login() {
         }
       }
     } catch (err) {
-      console.error('Biometric login error:', err);
       setError('Biometric login failed. Please use your password.');
       setShowBiometricPrompt(false);
     } finally {
@@ -93,7 +92,6 @@ export default function Login() {
         });
       }
     } catch (err) {
-      console.error('[Login] Error:', err);
       setError(err.response?.data?.detail || err.message || 'Something went wrong');
     } finally {
       setLoading(false);

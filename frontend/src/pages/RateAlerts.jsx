@@ -37,7 +37,6 @@ export default function RateAlerts() {
   // ── Create alert ──────────────────────────────────────────────────────────
   const createAlert = useMutation({
     mutationFn: (data) => {
-      console.log('[RateAlerts] create — user.email:', user.email, 'data:', data);
       return base44.entities.RateAlert.create({ ...data, user_email: user.email });
     },
     onSuccess: () => {
@@ -45,8 +44,7 @@ export default function RateAlerts() {
       setShowCreate(false);
       toast.success('Alert created!');
     },
-    onError: (err) => {
-      console.error('[RateAlerts] create error:', err);
+    onError: () => {
       toast.error('Failed to create alert. Please try again.');
     },
   });

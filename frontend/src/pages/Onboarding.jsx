@@ -43,8 +43,7 @@ export default function Onboarding() {
       
       // Refresh auth state
       await checkAppState();
-    } catch (err) {
-      console.error('[Onboarding] updateMe error:', err);
+    } catch {
       setError('Could not save your name. Please try again.');
       setLoading(false);
     }
