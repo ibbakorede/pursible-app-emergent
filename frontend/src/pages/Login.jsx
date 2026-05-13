@@ -7,7 +7,7 @@ import {
   authenticateWithBiometric,
   getBiometricTypeName,
 } from '@/lib/biometricAuth';
-import LoginHeader from './login/LoginHeader';
+import { LoginBackground, LoginBranding } from './login/LoginHeader';
 import LoginForm from './login/LoginForm';
 import BiometricPrompt from './login/BiometricPrompt';
 
@@ -89,9 +89,15 @@ export default function Login() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#0a0a0a] via-[#1a1a1a] to-[#0a0a0a] flex items-center justify-center p-4 relative overflow-hidden">
-      <LoginHeader />
+      {/* Background elements - absolute positioned */}
+      <LoginBackground />
 
+      {/* Main content container */}
       <div className="w-full max-w-md relative z-10">
+        {/* Branding section */}
+        <LoginBranding />
+
+        {/* Auth forms */}
         {showBiometricPrompt && biometricEnabled ? (
           <BiometricPrompt
             biometricUser={biometricUser}

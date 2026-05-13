@@ -1,6 +1,6 @@
 import { Shield, Zap, Sparkles } from 'lucide-react';
 
-export default function LoginHeader() {
+export function LoginBackground() {
   return (
     <>
       {/* Animated background elements */}
@@ -21,7 +21,13 @@ export default function LoginHeader() {
           backgroundSize: '50px 50px',
         }}
       />
+    </>
+  );
+}
 
+export function LoginBranding() {
+  return (
+    <>
       {/* Logo Section */}
       <div className="text-center mb-10">
         <div className="inline-flex items-center justify-center w-20 h-20 mb-5 relative">
