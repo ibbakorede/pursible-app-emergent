@@ -8,7 +8,7 @@ import { WalletPageSkeleton } from '@/components/shared/SkeletonLoaders';
 import WalletCard from '@/components/wallet/WalletCard';
 import CurrencyConverter from '@/components/wallet/CurrencyConverter';
 import { Eye, EyeOff, RefreshCw, ArrowDownLeft, ArrowUpRight, RefreshCcw, TrendingUp } from 'lucide-react';
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useCallback } from 'react';
 import { format } from 'date-fns';
 import { useBalanceAnnouncement } from '@/components/shared/AriaLiveRegions';
 
@@ -53,7 +53,7 @@ export default function WalletOverview() {
     return map;
   }, [rates]);
 
-  const convertTo = (amount, from, to) => {
+  const convertTo = useCallback((amount, from, to) => {
     if (from === to) return amount;
     const direct = rateMap[`${from}->${to}`];
     if (direct) return amount * direct;
@@ -61,7 +61,7 @@ export default function WalletOverview() {
     const fromUSD = rateMap[`USD->${to}`] || (to === 'USD' ? 1 : null);
     if (toUSD && fromUSD) return amount * toUSD * fromUSD;
     return null;
-  };
+  }, [rateMap]);
 
   const totalInPrimary = useMemo(() => {
     return walletData.reduce((sum, w) => {
@@ -69,7 +69,7 @@ export default function WalletOverview() {
       const converted = convertTo(w.available_balance, w.currency, primaryCurrency);
       return converted !== null ? sum + converted : sum;
     }, 0);
-  }, [walletData, primaryCurrency, rateMap]);
+  }, [walletData, primaryCurrency, convertTo]);
 
   // Sync live balances from providers in the background; invalidate wallets on success.
   const { data: balanceSync, refetch: refetchBalance } = useQuery({

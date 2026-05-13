@@ -51,7 +51,7 @@ export default function PostLoginPrompts() {
     const checkPrompts = async () => {
       // Check biometric prompt
       const biometricAvailable = await isBiometricAvailable();
-      const biometricEnabled = isBiometricEnabled();
+      const biometricEnabled = await isBiometricEnabled();
       const biometricPromptSeen = promptStorage.hasSeen(BIOMETRIC_PROMPT_KEY);
 
       if (biometricAvailable && !biometricEnabled && !biometricPromptSeen) {

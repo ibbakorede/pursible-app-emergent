@@ -7,11 +7,9 @@ import axios from 'axios';
 const API_BASE_URL = import.meta.env.VITE_BACKEND_URL || '';
 
 /**
- * Get auth token from sessionStorage (secure storage)
+ * Onboarding component - uses httpOnly cookies for auth
+ * No token extraction from storage needed - axios withCredentials handles it
  */
-const getAuthToken = () => {
-  return sessionStorage.getItem('auth_token');
-};
 
 export default function Onboarding() {
   const [firstName, setFirstName] = useState('');
@@ -29,13 +27,13 @@ export default function Onboarding() {
     setLoading(true);
     setError('');
     try {
-      const token = getAuthToken();
       const fullName = `${firstName.trim()} ${lastName.trim()}`;
       
+      // Use withCredentials to send httpOnly cookie
       await axios.patch(
         `${API_BASE_URL}/api/auth/me`,
         { full_name: fullName },
-        { headers: { Authorization: `Bearer ${token}` } }
+        { withCredentials: true }
       );
       
       // Update local user state

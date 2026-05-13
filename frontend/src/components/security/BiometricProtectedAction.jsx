@@ -23,7 +23,7 @@ export default function BiometricProtectedAction({
     if (canProceed && onAction) {
       onAction(...args);
     }
-  }, [checkBiometricAuth, onAction]);
+  }, [checkBiometricAuth, onAction, operationName]);
 
   // If children is a function, pass the protected handler
   if (typeof children === 'function') {

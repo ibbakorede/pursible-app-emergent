@@ -1,99 +1,30 @@
 /**
  * API Client for Pursible - Replaces Base44 SDK
  * Connects to our FastAPI backend
+ * 
+ * SECURITY: Uses httpOnly cookies for authentication
+ * No tokens are stored in localStorage/sessionStorage
  */
 import axios from 'axios';
 
 const API_BASE_URL = import.meta.env.VITE_BACKEND_URL || '';
 
-// Token expiration time (7 days in milliseconds)
-const TOKEN_EXPIRY_MS = 7 * 24 * 60 * 60 * 1000;
-
-/**
- * Secure storage utilities for auth tokens
- * Uses sessionStorage for tokens (cleared on tab close)
- * Uses localStorage for user profile (non-sensitive, persisted)
- */
-const secureStorage = {
-  setToken: (token) => {
-    const expiresAt = Date.now() + TOKEN_EXPIRY_MS;
-    sessionStorage.setItem('auth_token', token);
-    sessionStorage.setItem('auth_token_expires', String(expiresAt));
-  },
-  
-  getToken: () => {
-    const token = sessionStorage.getItem('auth_token');
-    const expiresAt = sessionStorage.getItem('auth_token_expires');
-    
-    if (!token || !expiresAt) {
-      // Fallback: check localStorage for legacy tokens
-      const legacyToken = localStorage.getItem('auth_token');
-      if (legacyToken) {
-        // Migrate legacy token to sessionStorage
-        secureStorage.setToken(legacyToken);
-        localStorage.removeItem('auth_token');
-        return legacyToken;
-      }
-      return null;
-    }
-    
-    // Check if token has expired
-    if (Date.now() > parseInt(expiresAt, 10)) {
-      secureStorage.clearAuth();
-      return null;
-    }
-    
-    return token;
-  },
-  
-  setUser: (userData) => {
-    // Store non-sensitive user profile in localStorage for persistence
-    localStorage.setItem('user_profile', JSON.stringify(userData));
-  },
-  
-  getUser: () => {
-    try {
-      const stored = localStorage.getItem('user_profile');
-      return stored ? JSON.parse(stored) : null;
-    } catch {
-      return null;
-    }
-  },
-  
-  clearAuth: () => {
-    sessionStorage.removeItem('auth_token');
-    sessionStorage.removeItem('auth_token_expires');
-    localStorage.removeItem('user_profile');
-    // Legacy cleanup
-    localStorage.removeItem('auth_token');
-    localStorage.removeItem('user');
-  }
-};
-
-// Create axios instance with defaults
+// Create axios instance with credentials enabled for httpOnly cookies
 const api = axios.create({
   baseURL: `${API_BASE_URL}/api`,
   headers: {
     'Content-Type': 'application/json',
   },
+  withCredentials: true, // Enable cookies for all requests
 });
 
-// Add auth token to requests
-api.interceptors.request.use((config) => {
-  const token = secureStorage.getToken();
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
-
-// Handle auth errors
+// Handle auth errors - redirect to login on 401
 api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      secureStorage.clearAuth();
-      // Redirect to login will be handled by AuthContext
+      // Auth cookie is invalid or expired
+      // Let the AuthContext handle redirect
     }
     return Promise.reject(error);
   }
@@ -159,42 +90,44 @@ const functions = {
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// AUTH - Authentication operations
+// AUTH - Authentication operations using httpOnly cookies
 // ═══════════════════════════════════════════════════════════════════════════════
 
 const auth = {
-  // Get current user
+  // Get current user (validates session via cookie)
   me: async () => {
     const response = await api.get('/auth/me');
     return response.data;
   },
   
-  // Login
+  // Login - server sets httpOnly cookie
   login: async (email, password) => {
     const response = await api.post('/auth/login', { email, password });
-    if (response.data.token) {
-      secureStorage.setToken(response.data.token);
-      secureStorage.setUser(response.data.user);
-    }
     return response.data;
   },
   
-  // Register
+  // Register - server sets httpOnly cookie
   register: async (data) => {
     const response = await api.post('/auth/register', data);
-    if (response.data.token) {
-      secureStorage.setToken(response.data.token);
-      secureStorage.setUser(response.data.user);
-    }
     return response.data;
   },
   
-  // Logout
-  logout: (redirectUrl = null) => {
-    secureStorage.clearAuth();
+  // Logout - server clears httpOnly cookie
+  logout: async (redirectUrl = null) => {
+    try {
+      await api.post('/auth/logout');
+    } catch {
+      // Ignore logout errors
+    }
     if (redirectUrl) {
       window.location.href = redirectUrl;
     }
+  },
+  
+  // Refresh token (extends cookie expiration)
+  refresh: async () => {
+    const response = await api.post('/auth/refresh');
+    return response.data;
   },
   
   // Redirect to login (for compatibility)
@@ -205,8 +138,80 @@ const auth = {
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// MAIN EXPORT - Mimics base44 client structure
+// BIOMETRIC - Server-side biometric credential management
 // ═══════════════════════════════════════════════════════════════════════════════
+
+const biometric = {
+  // Register biometric credential on server
+  register: async (credentialId, credentialRawId, publicKey = null) => {
+    const response = await api.post('/biometric/register', {
+      credential_id: credentialId,
+      credential_raw_id: credentialRawId,
+      public_key: publicKey,
+    });
+    return response.data;
+  },
+  
+  // Verify biometric credential exists
+  verify: async (credentialId, assertionData = null) => {
+    const response = await api.post('/biometric/verify', {
+      credential_id: credentialId,
+      assertion_data: assertionData,
+    });
+    return response.data;
+  },
+  
+  // Delete biometric credential
+  disable: async () => {
+    const response = await api.delete('/biometric/credential');
+    return response.data;
+  },
+  
+  // Get biometric status for current user
+  status: async () => {
+    const response = await api.get('/biometric/status');
+    return response.data;
+  },
+  
+  // Biometric login (after client-side WebAuthn verification)
+  login: async (email) => {
+    const response = await api.post('/auth/biometric-login', { email });
+    return response.data;
+  },
+};
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// PUSH NOTIFICATIONS - Server-side push token management
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const push = {
+  // Register push token on server
+  registerToken: async (token, deviceType = 'web') => {
+    const response = await api.post('/push/register-token', {
+      token,
+      device_type: deviceType,
+    });
+    return response.data;
+  },
+  
+  // Delete push token (on logout)
+  deleteToken: async () => {
+    const response = await api.delete('/push/token');
+    return response.data;
+  },
+  
+  // Get notification settings
+  getSettings: async () => {
+    const response = await api.get('/push/settings');
+    return response.data;
+  },
+  
+  // Update notification settings
+  updateSettings: async (settings) => {
+    const response = await api.patch('/push/settings', settings);
+    return response.data;
+  },
+};
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // INTEGRATIONS - File uploads and other integrations
@@ -228,8 +233,14 @@ const integrations = {
   },
 };
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// MAIN EXPORT - Mimics base44 client structure
+// ═══════════════════════════════════════════════════════════════════════════════
+
 export const base44 = {
   auth,
+  biometric,
+  push,
   functions,
   integrations,
   entities: {

@@ -1,23 +1,26 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { useBiometricAuth } from './useBiometricAuth';
 
 const BIOMETRIC_LOCK_TIMEOUT = 5 * 60 * 1000; // 5 minutes
-const STORAGE_KEY = 'biometric_lock_timestamp';
 
 /**
  * Hook for biometric lock functionality
- * Uses sessionStorage for lock timestamp (security-sensitive, session-scoped)
+ * Uses in-memory timestamp (React ref) instead of sessionStorage
+ * Lock state is session-scoped via memory, not persistent storage
  */
 export const useBiometricLock = () => {
   const [showBiometricModal, setShowBiometricModal] = useState(false);
   const [pendingAction, setPendingAction] = useState(null);
   const { checkAvailability } = useBiometricAuth();
+  
+  // Use ref for lock timestamp - memory only, no storage
+  const lastAuthTimestampRef = useRef(null);
 
   const isLocked = useCallback(() => {
-    const lastAuth = sessionStorage.getItem(STORAGE_KEY);
+    const lastAuth = lastAuthTimestampRef.current;
     if (!lastAuth) return true;
     
-    const timeSinceAuth = Date.now() - parseInt(lastAuth, 10);
+    const timeSinceAuth = Date.now() - lastAuth;
     return timeSinceAuth > BIOMETRIC_LOCK_TIMEOUT;
   }, []);
 
@@ -41,7 +44,8 @@ export const useBiometricLock = () => {
   }, [checkAvailability, isLocked]);
 
   const handleBiometricSuccess = useCallback(() => {
-    sessionStorage.setItem(STORAGE_KEY, Date.now().toString());
+    // Store timestamp in memory ref
+    lastAuthTimestampRef.current = Date.now();
     
     if (pendingAction?.callback) {
       pendingAction.callback();
@@ -52,7 +56,7 @@ export const useBiometricLock = () => {
   }, [pendingAction]);
 
   const clearLock = useCallback(() => {
-    sessionStorage.removeItem(STORAGE_KEY);
+    lastAuthTimestampRef.current = null;
   }, []);
 
   return {

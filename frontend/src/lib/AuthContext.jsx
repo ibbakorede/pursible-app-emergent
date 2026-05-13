@@ -3,59 +3,13 @@ import { base44 } from '@/api/base44Client';
 
 const AuthContext = createContext();
 
-// Token expiration time (7 days in milliseconds)
-const TOKEN_EXPIRY_MS = 7 * 24 * 60 * 60 * 1000;
-
 /**
- * Secure storage utilities using sessionStorage for sensitive data
- * with expiration handling
+ * Authentication Context using httpOnly cookies
+ * 
+ * SECURITY: Auth tokens are stored in httpOnly cookies managed by the server.
+ * No tokens are stored in localStorage/sessionStorage.
+ * User state is fetched from /auth/me which validates the cookie server-side.
  */
-const secureStorage = {
-  setToken: (token) => {
-    const expiresAt = Date.now() + TOKEN_EXPIRY_MS;
-    sessionStorage.setItem('auth_token', token);
-    sessionStorage.setItem('auth_token_expires', String(expiresAt));
-  },
-  
-  getToken: () => {
-    const token = sessionStorage.getItem('auth_token');
-    const expiresAt = sessionStorage.getItem('auth_token_expires');
-    
-    if (!token || !expiresAt) return null;
-    
-    // Check if token has expired
-    if (Date.now() > parseInt(expiresAt, 10)) {
-      secureStorage.clearAuth();
-      return null;
-    }
-    
-    return token;
-  },
-  
-  setUser: (userData) => {
-    // Store non-sensitive user data in localStorage for persistence
-    // Sensitive operations still require valid token from sessionStorage
-    localStorage.setItem('user_profile', JSON.stringify(userData));
-  },
-  
-  getUser: () => {
-    try {
-      const stored = localStorage.getItem('user_profile');
-      return stored ? JSON.parse(stored) : null;
-    } catch {
-      return null;
-    }
-  },
-  
-  clearAuth: () => {
-    sessionStorage.removeItem('auth_token');
-    sessionStorage.removeItem('auth_token_expires');
-    localStorage.removeItem('user_profile');
-    // Legacy cleanup
-    localStorage.removeItem('auth_token');
-    localStorage.removeItem('user');
-  }
-};
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
@@ -70,23 +24,14 @@ export const AuthProvider = ({ children }) => {
       setIsLoadingAuth(true);
       setAuthError(null);
       
-      // Check if we have a stored token (using secure storage)
-      const token = secureStorage.getToken();
-      const storedUser = secureStorage.getUser();
-      
-      if (token && storedUser) {
-        try {
-          // Verify token is still valid with backend
-          const currentUser = await base44.auth.me();
-          setUser(currentUser);
-          setIsAuthenticated(true);
-        } catch {
-          // Token invalid, clear storage
-          secureStorage.clearAuth();
-          setIsAuthenticated(false);
-          setUser(null);
-        }
-      } else {
+      // Check if session is valid by calling /auth/me
+      // The httpOnly cookie is automatically sent with the request
+      try {
+        const currentUser = await base44.auth.me();
+        setUser(currentUser);
+        setIsAuthenticated(true);
+      } catch {
+        // No valid session - cookie invalid or expired
         setIsAuthenticated(false);
         setUser(null);
       }
@@ -107,6 +52,7 @@ export const AuthProvider = ({ children }) => {
 
   const login = useCallback(async (email, password) => {
     try {
+      // Login sets httpOnly cookie on server
       const response = await base44.auth.login(email, password);
       setUser(response.user);
       setIsAuthenticated(true);
@@ -120,12 +66,15 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const loginWithToken = useCallback(async (token, userData) => {
+    // This method is now deprecated for security
+    // Token should only be in httpOnly cookie
+    // Just update the user state if provided
     try {
-      secureStorage.setToken(token);
-      secureStorage.setUser(userData);
-      setUser(userData);
-      setIsAuthenticated(true);
-      setAuthError(null);
+      if (userData) {
+        setUser(userData);
+        setIsAuthenticated(true);
+        setAuthError(null);
+      }
       return { success: true };
     } catch (error) {
       throw error;
@@ -134,6 +83,7 @@ export const AuthProvider = ({ children }) => {
 
   const register = useCallback(async (data) => {
     try {
+      // Register sets httpOnly cookie on server
       const response = await base44.auth.register(data);
       setUser(response.user);
       setIsAuthenticated(true);
@@ -146,11 +96,19 @@ export const AuthProvider = ({ children }) => {
     }
   }, []);
 
-  const logout = useCallback((shouldRedirect = true) => {
+  const logout = useCallback(async (shouldRedirect = true) => {
     setUser(null);
     setIsAuthenticated(false);
-    secureStorage.clearAuth();
-    base44.auth.logout(shouldRedirect ? '/' : null);
+    
+    // Clear push token and biometric on logout
+    try {
+      await base44.push.deleteToken();
+    } catch {
+      // Ignore push token deletion errors
+    }
+    
+    // Server clears httpOnly cookie
+    await base44.auth.logout(shouldRedirect ? '/' : null);
   }, []);
 
   const navigateToLogin = useCallback(() => {
@@ -159,7 +117,6 @@ export const AuthProvider = ({ children }) => {
 
   const updateUser = useCallback((userData) => {
     setUser(userData);
-    secureStorage.setUser(userData);
   }, []);
 
   return (

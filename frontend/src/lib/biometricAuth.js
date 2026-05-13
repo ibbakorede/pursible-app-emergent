@@ -1,52 +1,11 @@
 /**
  * Biometric Authentication Service
  * Uses WebAuthn API for fingerprint/face recognition
- * Note: Biometric credentials are stored locally as they don't contain sensitive data
- * The credential ID is just a reference - the actual authentication happens via WebAuthn
+ * 
+ * SECURITY: All credential data is stored server-side in MongoDB.
+ * No localStorage/sessionStorage is used for biometric data.
  */
-
-const BIOMETRIC_CREDENTIAL_KEY = 'pursible_biometric_credential';
-const BIOMETRIC_ENABLED_KEY = 'pursible_biometric_enabled';
-const BIOMETRIC_USER_KEY = 'pursible_biometric_user';
-
-/**
- * Secure biometric storage utilities
- * Biometric data is device-bound and non-sensitive (just references)
- * but we add expiration for security hygiene
- */
-const biometricStorage = {
-  setCredential: (credentialData) => {
-    const stored = {
-      ...credentialData,
-      storedAt: Date.now()
-    };
-    localStorage.setItem(BIOMETRIC_CREDENTIAL_KEY, JSON.stringify(stored));
-  },
-  
-  getCredential: () => {
-    try {
-      const stored = localStorage.getItem(BIOMETRIC_CREDENTIAL_KEY);
-      if (!stored) return null;
-      
-      const data = JSON.parse(stored);
-      // Credentials expire after 90 days for security
-      const EXPIRY_MS = 90 * 24 * 60 * 60 * 1000;
-      if (data.storedAt && (Date.now() - data.storedAt) > EXPIRY_MS) {
-        biometricStorage.clear();
-        return null;
-      }
-      return data;
-    } catch {
-      return null;
-    }
-  },
-  
-  clear: () => {
-    localStorage.removeItem(BIOMETRIC_CREDENTIAL_KEY);
-    localStorage.removeItem(BIOMETRIC_ENABLED_KEY);
-    localStorage.removeItem(BIOMETRIC_USER_KEY);
-  }
-};
+import { base44 } from '../api/apiClient';
 
 // Check if WebAuthn is supported
 export const isBiometricSupported = () => {
@@ -65,14 +24,21 @@ export const isBiometricAvailable = async () => {
   }
 };
 
-// Check if user has enabled biometric login
-export const isBiometricEnabled = () => {
-  return localStorage.getItem(BIOMETRIC_ENABLED_KEY) === 'true';
+// Check if user has enabled biometric login (from server)
+export const isBiometricEnabled = async () => {
+  try {
+    const status = await base44.biometric.status();
+    return status.biometric_enabled === true;
+  } catch {
+    return false;
+  }
 };
 
-// Get stored biometric user email
+// Get stored biometric user email (from auth context, not storage)
+// This is now managed by the AuthContext, not localStorage
 export const getBiometricUser = () => {
-  return localStorage.getItem(BIOMETRIC_USER_KEY);
+  // Return null - email is now retrieved from server via /auth/me
+  return null;
 };
 
 // Generate a random challenge
@@ -140,63 +106,63 @@ export const registerBiometric = async (userEmail, userName) => {
       publicKey: publicKeyCredentialCreationOptions,
     });
 
-    // Store credential info with secure storage
-    const credentialData = {
-      id: credential.id,
-      rawId: bufferToBase64(credential.rawId),
-      type: credential.type,
-    };
-
-    biometricStorage.setCredential(credentialData);
-    localStorage.setItem(BIOMETRIC_ENABLED_KEY, 'true');
-    localStorage.setItem(BIOMETRIC_USER_KEY, userEmail);
-
+    // Store credential on server (not in localStorage)
+    const credentialId = credential.id;
+    const credentialRawId = bufferToBase64(credential.rawId);
+    
+    await base44.biometric.register(credentialId, credentialRawId);
+    
     return true;
   } catch (error) {
     throw error;
   }
 };
 
-// Authenticate using biometric
-export const authenticateWithBiometric = async () => {
-  if (!isBiometricEnabled()) {
-    throw new Error('Biometric login not enabled');
-  }
-
-  const credentialData = biometricStorage.getCredential();
-  if (!credentialData) {
-    throw new Error('No biometric credential found');
-  }
-
+// Authenticate using biometric - returns user email from server
+export const authenticateWithBiometric = async (storedCredentialId = null, storedRawId = null) => {
+  // If we have stored credentials, use them; otherwise, allow any credential
   const challenge = generateChallenge();
 
   const publicKeyCredentialRequestOptions = {
     challenge,
-    allowCredentials: [{
-      id: base64ToBuffer(credentialData.rawId),
-      type: 'public-key',
-      transports: ['internal'],
-    }],
     userVerification: 'required',
     timeout: 60000,
   };
+
+  // If specific credential is provided, restrict to it
+  if (storedCredentialId && storedRawId) {
+    publicKeyCredentialRequestOptions.allowCredentials = [{
+      id: base64ToBuffer(storedRawId),
+      type: 'public-key',
+      transports: ['internal'],
+    }];
+  }
 
   try {
     const assertion = await navigator.credentials.get({
       publicKey: publicKeyCredentialRequestOptions,
     });
 
-    // Verification successful
-    const userEmail = localStorage.getItem(BIOMETRIC_USER_KEY);
-    return { success: true, email: userEmail };
+    // Verify credential on server and get user email
+    const verifyResult = await base44.biometric.verify(assertion.id);
+    
+    if (verifyResult.success && verifyResult.email) {
+      return { success: true, email: verifyResult.email };
+    }
+    
+    throw new Error('Biometric verification failed');
   } catch (error) {
     throw error;
   }
 };
 
 // Disable biometric login
-export const disableBiometric = () => {
-  biometricStorage.clear();
+export const disableBiometric = async () => {
+  try {
+    await base44.biometric.disable();
+  } catch {
+    // Silently handle errors during disable
+  }
 };
 
 // Get biometric type name for UI

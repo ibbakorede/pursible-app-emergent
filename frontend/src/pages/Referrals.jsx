@@ -49,7 +49,7 @@ export default function Referrals() {
       const code = generateCode();
       saveCode.mutate(code);
     }
-  }, [user?.email, user?.referral_code, saveCode]);
+  }, [user, saveCode]);
 
   // ── Loading guard ─────────────────────────────────────────────────────────
   if (!user || isLoading) return <LoadingSpinner />;

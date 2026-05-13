@@ -1,21 +1,11 @@
 /**
  * Push Notification Service
  * Supports both Web Push and prepares for FCM (mobile)
- * Note: Notification settings are non-sensitive user preferences stored in localStorage
- * FCM tokens are device identifiers and are safe in localStorage
+ * 
+ * SECURITY: All notification settings and FCM tokens are stored server-side in MongoDB.
+ * No localStorage/sessionStorage is used for notification data.
  */
-
-const NOTIFICATION_PERMISSION_KEY = 'pursible_notification_permission';
-const NOTIFICATION_SETTINGS_KEY = 'pursible_notification_settings';
-const FCM_TOKEN_KEY = 'pursible_fcm_token';
-
-// Default notification settings
-const defaultSettings = {
-  transactions: true,      // Deposits, withdrawals, conversions
-  rateAlerts: true,        // When target rate is reached
-  security: true,          // New login, password changes
-  marketing: false,        // Promotional notifications
-};
+import { base44 } from '../api/apiClient';
 
 // Check if notifications are supported
 export const isNotificationSupported = () => {
@@ -36,7 +26,6 @@ export const requestNotificationPermission = async () => {
 
   try {
     const permission = await Notification.requestPermission();
-    localStorage.setItem(NOTIFICATION_PERMISSION_KEY, permission);
     
     if (permission === 'granted') {
       await registerServiceWorker();
@@ -45,7 +34,6 @@ export const requestNotificationPermission = async () => {
     
     return { granted: false, reason: permission };
   } catch (error) {
-    console.error('Notification permission request failed:', error);
     return { granted: false, reason: 'error' };
   }
 };
@@ -55,39 +43,57 @@ const registerServiceWorker = async () => {
   if ('serviceWorker' in navigator) {
     try {
       const registration = await navigator.serviceWorker.register('/sw.js');
-      console.log('Service Worker registered:', registration);
       return registration;
-    } catch (error) {
-      console.error('Service Worker registration failed:', error);
+    } catch {
+      // Service worker registration failed
     }
   }
 };
 
-// Get notification settings
-export const getNotificationSettings = () => {
-  const stored = localStorage.getItem(NOTIFICATION_SETTINGS_KEY);
-  if (stored) {
-    return { ...defaultSettings, ...JSON.parse(stored) };
+// Get notification settings from server
+export const getNotificationSettings = async () => {
+  try {
+    const result = await base44.push.getSettings();
+    return result.settings || {
+      transactions: true,
+      rateAlerts: true,
+      security: true,
+      marketing: false,
+    };
+  } catch {
+    // Return defaults if server call fails
+    return {
+      transactions: true,
+      rateAlerts: true,
+      security: true,
+      marketing: false,
+    };
   }
-  return defaultSettings;
 };
 
-// Update notification settings
-export const updateNotificationSettings = (settings) => {
-  const current = getNotificationSettings();
-  const updated = { ...current, ...settings };
-  localStorage.setItem(NOTIFICATION_SETTINGS_KEY, JSON.stringify(updated));
-  return updated;
+// Update notification settings on server
+export const updateNotificationSettings = async (settings) => {
+  try {
+    const result = await base44.push.updateSettings(settings);
+    return result.settings;
+  } catch {
+    return settings;
+  }
 };
 
 // Show local notification
 export const showNotification = async (title, options = {}) => {
   if (getNotificationPermission() !== 'granted') {
-    console.warn('Notification permission not granted');
     return;
   }
 
-  const settings = getNotificationSettings();
+  // Get settings from server for type filtering
+  let settings = { transactions: true, rateAlerts: true, security: true, marketing: false };
+  try {
+    settings = await getNotificationSettings();
+  } catch {
+    // Use defaults
+  }
   
   // Check if this notification type is enabled
   if (options.type && !settings[options.type]) {
@@ -111,8 +117,8 @@ export const showNotification = async (title, options = {}) => {
     } else {
       new Notification(title, defaultOptions);
     }
-  } catch (error) {
-    console.error('Failed to show notification:', error);
+  } catch {
+    // Failed to show notification
   }
 };
 
@@ -154,20 +160,37 @@ export const notifySecurity = (event) => {
   });
 };
 
-// Store FCM token for mobile push (future use)
-export const storeFCMToken = (token) => {
-  localStorage.setItem(FCM_TOKEN_KEY, token);
+// Store FCM token on server
+export const storeFCMToken = async (token) => {
+  try {
+    await base44.push.registerToken(token, 'web');
+  } catch {
+    // Silently handle token storage failure
+  }
 };
 
+// Get FCM token - now returns null (server-managed)
 export const getFCMToken = () => {
-  return localStorage.getItem(FCM_TOKEN_KEY);
+  // FCM token is now server-side only
+  return null;
 };
 
-// Check if user has seen the notification prompt
+// Delete FCM token on server (call on logout)
+export const clearFCMToken = async () => {
+  try {
+    await base44.push.deleteToken();
+  } catch {
+    // Silently handle deletion failure
+  }
+};
+
+// Check if user has seen the notification prompt (session-based)
+let notificationPromptSeen = false;
+
 export const hasSeenNotificationPrompt = () => {
-  return localStorage.getItem('pursible_notification_prompt_seen') === 'true';
+  return notificationPromptSeen;
 };
 
 export const markNotificationPromptSeen = () => {
-  localStorage.setItem('pursible_notification_prompt_seen', 'true');
+  notificationPromptSeen = true;
 };

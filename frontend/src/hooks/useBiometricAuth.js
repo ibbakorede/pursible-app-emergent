@@ -55,8 +55,9 @@ export const useBiometricAuth = () => {
           throw new Error('Biometric not available');
         }
 
-        // If user has registered biometric, use it
-        if (isBiometricEnabled()) {
+        // If user has registered biometric, use it (async check)
+        const enabled = await isBiometricEnabled();
+        if (enabled) {
           const result = await authenticateWithBiometric();
           setIsAuthenticating(false);
           return result.success;
@@ -82,9 +83,13 @@ export const useBiometricAuth = () => {
       return false;
     } catch (error) {
       setIsAuthenticating(false);
-      console.warn('Biometric challenge failed:', error);
       throw error;
     }
+  }, []);
+
+  // Async function to check if biometric is enabled (server-side)
+  const checkIsEnabled = useCallback(async () => {
+    return await isBiometricEnabled();
   }, []);
 
   return {
@@ -94,7 +99,7 @@ export const useBiometricAuth = () => {
     checkAvailability,
     isAuthenticating,
     isAvailable,
-    isEnabled: isBiometricEnabled,
+    isEnabled: checkIsEnabled, // Now returns a function that returns a promise
     disable: disableBiometric,
   };
 };

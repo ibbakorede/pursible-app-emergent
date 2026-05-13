@@ -13,8 +13,8 @@ import {
   ArrowLeft, Lock, Key, Eye, Trash2, ChevronRight, Shield
 } from 'lucide-react';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
-import BiometricLockModal from '@/components/shared/BiometricLockModal';
-import DeleteAccountModal from '@/components/shared/DeleteAccountModal';
+import BiometricLockModal from '@/components/security/BiometricLockModal';
+import DeleteAccountModal from '@/components/profile/DeleteAccountModal';
 import { registerBiometric } from '@/lib/biometricAuth';
 
 // Import refactored components

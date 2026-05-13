@@ -27,7 +27,7 @@ export function useTabHistory() {
     if (!MAIN_TAB_PATHS.includes(location.pathname)) return;
     tabHistoryManager.setCurrentTab(currentTab);
     tabHistoryManager.pushPath(currentTab, location.pathname, location.state);
-  }, [location.pathname, currentTab]);
+  }, [location.pathname, location.state, currentTab]);
 
   const switchTab = (tabKey) => {
     const stack = tabHistoryManager.getStack(tabKey);

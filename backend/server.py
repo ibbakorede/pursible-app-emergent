@@ -2,7 +2,7 @@
 Pursible Backend - FastAPI Server
 Replicates Base44 cloud functions for Emergent platform
 """
-from fastapi import FastAPI, APIRouter, HTTPException, Depends, Query, Request, UploadFile, File
+from fastapi import FastAPI, APIRouter, HTTPException, Depends, Query, Request, UploadFile, File, Response, Cookie
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.responses import FileResponse
 from dotenv import load_dotenv
@@ -54,6 +54,12 @@ JWT_SECRET = os.environ.get('JWT_SECRET', 'pursible-secret-key-change-in-product
 JWT_ALGORITHM = 'HS256'
 JWT_EXPIRATION_HOURS = 24 * 7  # 7 days
 
+# Cookie Settings
+COOKIE_NAME = "pursible_auth"
+COOKIE_MAX_AGE = 60 * 60 * 24 * 7  # 7 days in seconds
+FRONTEND_ORIGIN = os.environ.get('FRONTEND_ORIGIN', '')
+IS_SECURE = FRONTEND_ORIGIN.startswith('https')
+
 # Third-party API Keys
 FLUTTERWAVE_SECRET_KEY = os.environ.get('FLUTTERWAVE_SECRET_KEY', '')
 FLUTTERWAVE_PUBLIC_KEY = os.environ.get('FLUTTERWAVE_PUBLIC_KEY', '')
@@ -77,6 +83,8 @@ auth_router = APIRouter(prefix="/auth", tags=["Authentication"])
 entities_router = APIRouter(prefix="/entities", tags=["Entities"])
 functions_router = APIRouter(prefix="/functions", tags=["Functions"])
 webhooks_router = APIRouter(prefix="/webhooks", tags=["Webhooks"])
+biometric_router = APIRouter(prefix="/biometric", tags=["Biometric"])
+push_router = APIRouter(prefix="/push", tags=["Push Notifications"])
 
 security = HTTPBearer(auto_error=False)
 
@@ -106,6 +114,7 @@ class UserResponse(BaseModel):
     full_name: Optional[str] = None
     kyc_status: Optional[str] = None
     role: Optional[str] = None
+    biometric_enabled: bool = False
     created_date: str
     
 class TokenResponse(BaseModel):
@@ -178,23 +187,64 @@ def decode_jwt_token(token: str) -> Dict[str, Any]:
     except jwt.InvalidTokenError:
         raise HTTPException(status_code=401, detail="Invalid token")
 
-async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)) -> Dict[str, Any]:
-    """Get the current authenticated user from JWT token."""
-    if not credentials:
+def set_auth_cookie(response: Response, token: str) -> None:
+    """Set httpOnly secure auth cookie."""
+    response.set_cookie(
+        key=COOKIE_NAME,
+        value=token,
+        httponly=True,
+        secure=IS_SECURE,
+        samesite="lax",
+        max_age=COOKIE_MAX_AGE,
+        path="/"
+    )
+
+def clear_auth_cookie(response: Response) -> None:
+    """Clear the auth cookie."""
+    response.delete_cookie(
+        key=COOKIE_NAME,
+        path="/",
+        httponly=True,
+        secure=IS_SECURE,
+        samesite="lax"
+    )
+
+async def get_current_user(
+    request: Request,
+    credentials: HTTPAuthorizationCredentials = Depends(security)
+) -> Dict[str, Any]:
+    """Get the current authenticated user from httpOnly cookie or Bearer token."""
+    token = None
+    
+    # First, try to get token from httpOnly cookie
+    token = request.cookies.get(COOKIE_NAME)
+    
+    # Fallback to Bearer token for backward compatibility during migration
+    if not token and credentials:
+        token = credentials.credentials
+    
+    if not token:
         raise HTTPException(status_code=401, detail="Not authenticated")
     
-    payload = decode_jwt_token(credentials.credentials)
+    payload = decode_jwt_token(token)
     user = await db.users.find_one({"id": payload['sub']}, {"_id": 0})
     if not user:
         raise HTTPException(status_code=401, detail="User not found")
     return user
 
-async def get_optional_user(credentials: HTTPAuthorizationCredentials = Depends(security)) -> Optional[Dict[str, Any]]:
+async def get_optional_user(
+    request: Request,
+    credentials: HTTPAuthorizationCredentials = Depends(security)
+) -> Optional[Dict[str, Any]]:
     """Get the current user if authenticated, otherwise return None."""
-    if not credentials:
+    token = request.cookies.get(COOKIE_NAME)
+    if not token and credentials:
+        token = credentials.credentials
+    
+    if not token:
         return None
     try:
-        payload = decode_jwt_token(credentials.credentials)
+        payload = decode_jwt_token(token)
         user = await db.users.find_one({"id": payload['sub']}, {"_id": 0})
         return user
     except Exception:
@@ -261,7 +311,7 @@ BANK_CODES = {
 # ═══════════════════════════════════════════════════════════════════════════════
 
 @auth_router.post("/register", response_model=TokenResponse)
-async def register(data: UserCreate):
+async def register(data: UserCreate, response: Response):
     """Register a new user"""
     # Check if user exists
     existing = await db.users.find_one({"email": data.email})
@@ -275,6 +325,9 @@ async def register(data: UserCreate):
         "password_hash": hash_password(data.password),
         "full_name": data.full_name,
         "kyc_status": None,
+        "biometric_enabled": False,
+        "biometric_credentials": None,
+        "push_token": None,
         "created_date": get_timestamp()
     }
     await db.users.insert_one(user_doc)
@@ -303,6 +356,10 @@ async def register(data: UserCreate):
     })
     
     token = create_jwt_token(user_id, data.email)
+    
+    # Set httpOnly cookie
+    set_auth_cookie(response, token)
+    
     return TokenResponse(
         token=token,
         user=UserResponse(
@@ -310,18 +367,23 @@ async def register(data: UserCreate):
             email=data.email,
             full_name=data.full_name,
             kyc_status=None,
+            biometric_enabled=False,
             created_date=user_doc["created_date"]
         )
     )
 
 @auth_router.post("/login", response_model=TokenResponse)
-async def login(data: UserLogin):
+async def login(data: UserLogin, response: Response):
     """Login user"""
     user = await db.users.find_one({"email": data.email}, {"_id": 0})
     if not user or not verify_password(data.password, user.get("password_hash", "")):
         raise HTTPException(status_code=401, detail="Invalid email or password")
     
     token = create_jwt_token(user["id"], user["email"])
+    
+    # Set httpOnly cookie
+    set_auth_cookie(response, token)
+    
     return TokenResponse(
         token=token,
         user=UserResponse(
@@ -330,19 +392,52 @@ async def login(data: UserLogin):
             full_name=user.get("full_name"),
             kyc_status=user.get("kyc_status"),
             role=user.get("role"),
+            biometric_enabled=user.get("biometric_enabled", False),
             created_date=user.get("created_date", get_timestamp())
         )
     )
+
+@auth_router.post("/logout")
+async def logout(response: Response):
+    """Logout user - clear auth cookie"""
+    clear_auth_cookie(response)
+    return {"success": True, "message": "Logged out successfully"}
+
+@auth_router.post("/refresh")
+async def refresh_token(request: Request, response: Response):
+    """Refresh the auth token"""
+    token = request.cookies.get(COOKIE_NAME)
+    if not token:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    try:
+        payload = decode_jwt_token(token)
+        user = await db.users.find_one({"id": payload['sub']}, {"_id": 0})
+        if not user:
+            raise HTTPException(status_code=401, detail="User not found")
+        
+        # Generate new token
+        new_token = create_jwt_token(user["id"], user["email"])
+        set_auth_cookie(response, new_token)
+        
+        return {"success": True, "message": "Token refreshed"}
+    except jwt.ExpiredSignatureError:
+        clear_auth_cookie(response)
+        raise HTTPException(status_code=401, detail="Token expired, please login again")
 
 class BiometricLoginRequest(BaseModel):
     email: EmailStr
 
 @auth_router.post("/biometric-login", response_model=TokenResponse)
-async def biometric_login(data: BiometricLoginRequest):
+async def biometric_login(data: BiometricLoginRequest, response: Response):
     """Login user via biometric authentication (client-side verified)"""
     user = await db.users.find_one({"email": data.email}, {"_id": 0})
     if not user:
         raise HTTPException(status_code=401, detail="User not found")
+    
+    # Verify biometric is enabled for this user
+    if not user.get("biometric_enabled"):
+        raise HTTPException(status_code=400, detail="Biometric login not enabled for this user")
     
     # Mark biometric login in user record
     await db.users.update_one(
@@ -351,8 +446,11 @@ async def biometric_login(data: BiometricLoginRequest):
     )
     
     token = create_jwt_token(user["id"], user["email"])
+    
+    # Set httpOnly cookie
+    set_auth_cookie(response, token)
+    
     return TokenResponse(
-        success=True,
         token=token,
         user=UserResponse(
             id=user["id"],
@@ -360,12 +458,13 @@ async def biometric_login(data: BiometricLoginRequest):
             full_name=user.get("full_name"),
             kyc_status=user.get("kyc_status"),
             role=user.get("role"),
+            biometric_enabled=user.get("biometric_enabled", False),
             created_date=user.get("created_date", get_timestamp())
         )
     )
 
 @auth_router.get("/me", response_model=UserResponse)
-async def get_me(user: dict = Depends(get_current_user)):
+async def get_me(request: Request, user: dict = Depends(get_current_user)):
     """Get current user"""
     return UserResponse(
         id=user["id"],
@@ -373,11 +472,12 @@ async def get_me(user: dict = Depends(get_current_user)):
         full_name=user.get("full_name"),
         kyc_status=user.get("kyc_status"),
         role=user.get("role"),
+        biometric_enabled=user.get("biometric_enabled", False),
         created_date=user.get("created_date", get_timestamp())
     )
 
 @auth_router.patch("/me")
-async def update_me(data: dict, user: dict = Depends(get_current_user)):
+async def update_me(data: dict, request: Request, user: dict = Depends(get_current_user)):
     """Update current user profile"""
     allowed_fields = ["full_name", "phone", "address", "date_of_birth", "nationality"]
     update_data = {k: v for k, v in data.items() if k in allowed_fields}
@@ -1476,11 +1576,229 @@ async def root():
     """Root endpoint"""
     return {"message": "Pursible API", "version": "1.0.0"}
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# BIOMETRIC AUTHENTICATION ROUTES
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class BiometricRegisterRequest(BaseModel):
+    credential_id: str
+    credential_raw_id: str
+    public_key: Optional[str] = None
+
+class BiometricVerifyRequest(BaseModel):
+    credential_id: str
+    assertion_data: Optional[str] = None
+
+@biometric_router.post("/register")
+async def register_biometric(
+    data: BiometricRegisterRequest,
+    request: Request,
+    user: dict = Depends(get_current_user)
+):
+    """Store biometric credential ID and public key for the user"""
+    try:
+        credential_data = {
+            "credential_id": data.credential_id,
+            "credential_raw_id": data.credential_raw_id,
+            "public_key": data.public_key,
+            "registered_at": get_timestamp()
+        }
+        
+        await db.users.update_one(
+            {"id": user["id"]},
+            {
+                "$set": {
+                    "biometric_enabled": True,
+                    "biometric_credentials": credential_data
+                }
+            }
+        )
+        
+        return {"success": True, "message": "Biometric credential registered"}
+    except Exception as e:
+        logger.error(f"Biometric registration failed: {e}")
+        raise HTTPException(status_code=500, detail="Failed to register biometric")
+
+@biometric_router.post("/verify")
+async def verify_biometric(
+    data: BiometricVerifyRequest,
+    request: Request
+):
+    """Verify a biometric assertion - returns user email if valid"""
+    try:
+        # Find user by credential_id
+        user = await db.users.find_one(
+            {"biometric_credentials.credential_id": data.credential_id},
+            {"_id": 0}
+        )
+        
+        if not user:
+            raise HTTPException(status_code=404, detail="Biometric credential not found")
+        
+        if not user.get("biometric_enabled"):
+            raise HTTPException(status_code=400, detail="Biometric login not enabled")
+        
+        # The actual WebAuthn verification happens client-side
+        # Server just validates the credential exists
+        return {
+            "success": True,
+            "email": user["email"],
+            "verified": True
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Biometric verification failed: {e}")
+        raise HTTPException(status_code=500, detail="Verification failed")
+
+@biometric_router.delete("/credential")
+async def delete_biometric(
+    request: Request,
+    user: dict = Depends(get_current_user)
+):
+    """Disable biometric authentication for the user"""
+    try:
+        await db.users.update_one(
+            {"id": user["id"]},
+            {
+                "$set": {
+                    "biometric_enabled": False,
+                    "biometric_credentials": None
+                }
+            }
+        )
+        
+        return {"success": True, "message": "Biometric credential removed"}
+    except Exception as e:
+        logger.error(f"Biometric deletion failed: {e}")
+        raise HTTPException(status_code=500, detail="Failed to remove biometric")
+
+@biometric_router.get("/status")
+async def get_biometric_status(
+    request: Request,
+    user: dict = Depends(get_current_user)
+):
+    """Get biometric status for the current user"""
+    return {
+        "biometric_enabled": user.get("biometric_enabled", False),
+        "has_credentials": user.get("biometric_credentials") is not None
+    }
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# PUSH NOTIFICATION ROUTES
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class PushTokenRequest(BaseModel):
+    token: str
+    device_type: Optional[str] = "web"
+
+class NotificationSettingsRequest(BaseModel):
+    transactions: Optional[bool] = None
+    rateAlerts: Optional[bool] = None
+    security: Optional[bool] = None
+    marketing: Optional[bool] = None
+
+@push_router.post("/register-token")
+async def register_push_token(
+    data: PushTokenRequest,
+    request: Request,
+    user: dict = Depends(get_current_user)
+):
+    """Store FCM/push token for the user"""
+    try:
+        await db.users.update_one(
+            {"id": user["id"]},
+            {
+                "$set": {
+                    "push_token": data.token,
+                    "push_device_type": data.device_type,
+                    "push_token_updated": get_timestamp()
+                }
+            }
+        )
+        
+        return {"success": True, "message": "Push token registered"}
+    except Exception as e:
+        logger.error(f"Push token registration failed: {e}")
+        raise HTTPException(status_code=500, detail="Failed to register push token")
+
+@push_router.delete("/token")
+async def delete_push_token(
+    request: Request,
+    user: dict = Depends(get_current_user)
+):
+    """Clear push token on logout"""
+    try:
+        await db.users.update_one(
+            {"id": user["id"]},
+            {
+                "$set": {
+                    "push_token": None,
+                    "push_device_type": None
+                }
+            }
+        )
+        
+        return {"success": True, "message": "Push token removed"}
+    except Exception as e:
+        logger.error(f"Push token deletion failed: {e}")
+        raise HTTPException(status_code=500, detail="Failed to remove push token")
+
+@push_router.get("/settings")
+async def get_notification_settings(
+    request: Request,
+    user: dict = Depends(get_current_user)
+):
+    """Get notification settings for the current user"""
+    settings = user.get("notification_settings", {
+        "transactions": True,
+        "rateAlerts": True,
+        "security": True,
+        "marketing": False
+    })
+    
+    return {
+        "success": True,
+        "settings": settings,
+        "push_enabled": user.get("push_token") is not None
+    }
+
+@push_router.patch("/settings")
+async def update_notification_settings(
+    data: NotificationSettingsRequest,
+    request: Request,
+    user: dict = Depends(get_current_user)
+):
+    """Update notification settings for the current user"""
+    try:
+        current_settings = user.get("notification_settings", {
+            "transactions": True,
+            "rateAlerts": True,
+            "security": True,
+            "marketing": False
+        })
+        
+        # Update only provided fields
+        update_data = data.model_dump(exclude_none=True)
+        current_settings.update(update_data)
+        
+        await db.users.update_one(
+            {"id": user["id"]},
+            {"$set": {"notification_settings": current_settings}}
+        )
+        
+        return {"success": True, "settings": current_settings}
+    except Exception as e:
+        logger.error(f"Notification settings update failed: {e}")
+        raise HTTPException(status_code=500, detail="Failed to update settings")
+
 # Include routers
 api_router.include_router(auth_router)
 api_router.include_router(entities_router)
 api_router.include_router(functions_router)
 api_router.include_router(webhooks_router)
+api_router.include_router(biometric_router)
+api_router.include_router(push_router)
 app.include_router(api_router)
 
 # CORS

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useCallback } from 'react';
 import { formatCurrency, CURRENCIES } from '@/lib/currencies';
 import { TrendingUp, RefreshCw } from 'lucide-react';
 
@@ -15,7 +15,7 @@ export default function PortfolioSummary({ walletData, rates, lastUpdated, onRef
   }, [rates]);
 
   // Convert any amount to primary currency
-  const convertTo = (amount, from, to) => {
+  const convertTo = useCallback((amount, from, to) => {
     if (from === to) return amount;
     const direct = rateMap[`${from}->${to}`];
     if (direct) return amount * direct;
@@ -24,7 +24,7 @@ export default function PortfolioSummary({ walletData, rates, lastUpdated, onRef
     const fromUSD = rateMap[`USD->${to}`] || (to === 'USD' ? 1 : null);
     if (toUSD && fromUSD) return amount * toUSD * fromUSD;
     return null;
-  };
+  }, [rateMap]);
 
   const totalInPrimary = useMemo(() => {
     return walletData.reduce((sum, w) => {
@@ -32,7 +32,7 @@ export default function PortfolioSummary({ walletData, rates, lastUpdated, onRef
       const converted = convertTo(w.available_balance, w.currency, primaryCurrency);
       return converted !== null ? sum + converted : sum;
     }, 0);
-  }, [walletData, primaryCurrency, rateMap]);
+  }, [walletData, primaryCurrency, convertTo]);
 
   return (
     <div className="bg-gradient-to-br from-primary to-primary/80 rounded-2xl p-5 text-primary-foreground">
