@@ -450,7 +450,26 @@ async def update_me(data: dict, request: Request, user: dict = Depends(get_curre
 
 def get_collection_name(entity_name: str) -> str:
     """Map entity names to collection names."""
-    return entity_name.lower().replace("-", "_")
+    name = entity_name.lower().replace("-", "_")
+    # Handle plural collection names
+    plural_map = {
+        "user": "users",
+        "wallet": "wallets", 
+        "transaction": "transactions",
+        "kycrecord": "kyc_records",
+        "conversionrate": "conversion_rates",
+        "ratealert": "rate_alerts",
+        "bankaccount": "bank_accounts",
+        "notification": "notifications",
+        "goal": "goals",
+        "auditlog": "audit_logs",
+        "apperror": "app_errors",
+        "pushtoken": "push_tokens",
+        "biometriccredential": "biometric_credentials",
+        "referral": "referrals",
+        "balance": "balances",
+    }
+    return plural_map.get(name, name)
 
 @entities_router.get("/{entity_name}")
 async def list_entities(
@@ -523,6 +542,69 @@ async def filter_entities(
     
     return await cursor.to_list(limit or 1000)
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# ENTITY AUTHORIZATION RULES
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Entities that only admins can modify
+ADMIN_ONLY_ENTITIES = {"KYCRecord", "Wallet", "Transaction", "ConversionRate", "AuditLog", "AppError"}
+
+# Entities that users can modify if they own them (matched by user_email or user_id)
+USER_OWNED_ENTITIES = {"User", "Goal", "RateAlert", "PushToken", "BiometricCredential", "BankAccount", "Notification"}
+
+# Fields that cannot be modified via generic API even on owned entities
+PROTECTED_FIELDS = {
+    "User": {"role", "kyc_status", "kyc_approved_at", "is_frozen", "created_at", "password_hash", "email"},
+    "Goal": {"user_email", "created_date"},
+    "RateAlert": {"user_email", "created_date"},
+    "BankAccount": {"user_email", "is_verified", "created_date"},
+}
+
+async def check_entity_authorization(
+    entity_name: str, 
+    entity_id: str, 
+    user: dict, 
+    collection,
+    operation: str = "update"
+) -> dict:
+    """
+    Check if user is authorized to modify an entity.
+    Returns the existing entity if authorized, raises HTTPException otherwise.
+    """
+    # Admin-only entities
+    if entity_name in ADMIN_ONLY_ENTITIES:
+        if user.get("role") != "admin":
+            raise HTTPException(status_code=403, detail=f"Admin access required to {operation} {entity_name}")
+        existing = await collection.find_one({"id": entity_id}, {"_id": 0})
+        if not existing:
+            raise HTTPException(status_code=404, detail="Entity not found")
+        return existing
+    
+    # User-owned entities
+    if entity_name in USER_OWNED_ENTITIES:
+        existing = await collection.find_one({"id": entity_id}, {"_id": 0})
+        if not existing:
+            raise HTTPException(status_code=404, detail="Entity not found")
+        
+        # Check ownership via user_email, user_id, email, or id
+        owner_email = existing.get("user_email") or existing.get("email")
+        owner_id = existing.get("user_id") or existing.get("id")
+        
+        is_owner = (owner_email == user.get("email") or owner_id == user.get("id"))
+        is_admin = user.get("role") == "admin"
+        
+        if not is_owner and not is_admin:
+            raise HTTPException(status_code=403, detail="Cannot modify resources you don't own")
+        return existing
+    
+    # Unknown entity - block by default
+    raise HTTPException(status_code=403, detail=f"Entity '{entity_name}' not modifiable via generic API")
+
+def strip_protected_fields(entity_name: str, data: dict) -> dict:
+    """Remove protected fields from update data"""
+    protected = PROTECTED_FIELDS.get(entity_name, set())
+    return {k: v for k, v in data.items() if k not in protected}
+
 @entities_router.get("/{entity_name}/{entity_id}")
 async def get_entity(
     entity_name: str,
@@ -542,13 +624,26 @@ async def create_entity(
     data: dict,
     user: dict = Depends(get_current_user)
 ):
-    """Create a new entity"""
+    """Create a new entity - with authorization checks"""
+    # Block creation of admin-only entities by non-admins
+    if entity_name in ADMIN_ONLY_ENTITIES:
+        if user.get("role") != "admin":
+            raise HTTPException(status_code=403, detail=f"Admin access required to create {entity_name}")
+    
+    # Block creation of unknown entities
+    if entity_name not in ADMIN_ONLY_ENTITIES and entity_name not in USER_OWNED_ENTITIES:
+        raise HTTPException(status_code=403, detail=f"Cannot create '{entity_name}' via generic API")
+    
     collection = db[get_collection_name(entity_name)]
     
     entity_id = data.get("id") or generate_id()
+    
+    # Strip protected fields
+    safe_data = strip_protected_fields(entity_name, data)
+    
     doc = {
         "id": entity_id,
-        **data,
+        **safe_data,
         "created_date": get_timestamp()
     }
     
@@ -569,16 +664,25 @@ async def update_entity(
     data: dict,
     user: dict = Depends(get_current_user)
 ):
-    """Update an entity"""
+    """Update an entity - with authorization checks"""
     collection = db[get_collection_name(entity_name)]
+    
+    # Check authorization
+    await check_entity_authorization(entity_name, entity_id, user, collection, "update")
     
     # Remove id and _id from update data
     data.pop("id", None)
     data.pop("_id", None)
     
+    # Strip protected fields
+    safe_data = strip_protected_fields(entity_name, data)
+    
+    if not safe_data:
+        raise HTTPException(status_code=400, detail="No valid fields to update")
+    
     result = await collection.update_one(
         {"id": entity_id},
-        {"$set": data}
+        {"$set": safe_data}
     )
     
     if result.matched_count == 0:
@@ -593,8 +697,12 @@ async def delete_entity(
     entity_id: str,
     user: dict = Depends(get_current_user)
 ):
-    """Delete an entity"""
+    """Delete an entity - with authorization checks"""
     collection = db[get_collection_name(entity_name)]
+    
+    # Check authorization
+    await check_entity_authorization(entity_name, entity_id, user, collection, "delete")
+    
     result = await collection.delete_one({"id": entity_id})
     
     if result.deleted_count == 0:
