@@ -22,8 +22,8 @@ Pursible is a fintech application for cross-border payments, built with:
 
 ### 1. Clone Repository
 ```bash
-git clone https://github.com/your-username/paysible-app.git
-cd paysible-app
+git clone https://github.com/your-username/pursible-app.git
+cd pursible-app
 ```
 
 ### 2. Backend Setup
@@ -40,7 +40,7 @@ pip install -r requirements.txt
 # Create .env file
 cat > .env << EOF
 MONGO_URL=mongodb://localhost:27017
-DB_NAME=paysible
+DB_NAME=pursible
 JWT_SECRET=your-super-secret-jwt-key-change-in-production
 JWT_ALGORITHM=HS256
 JWT_EXPIRATION_HOURS=24
@@ -86,8 +86,8 @@ curl -X POST http://localhost:8001/api/seed-demo-data
 │
 ├── frontend/
 │   ├── public/
-│   │   ├── paysible_icon.svg       # Black logo
-│   │   ├── paysible_icon_white.svg # White logo
+│   │   ├── pursible_icon.svg       # Black logo
+│   │   ├── pursible_icon_white.svg # White logo
 │   │   └── sw.js                   # Service worker
 │   │
 │   ├── src/
@@ -152,7 +152,7 @@ curl -X POST http://localhost:8001/api/seed-demo-data
 ### Backend (.env)
 ```env
 MONGO_URL=mongodb://...          # MongoDB connection string
-DB_NAME=paysible                  # Database name
+DB_NAME=pursible                  # Database name
 JWT_SECRET=...                    # JWT signing secret
 JWT_ALGORITHM=HS256               # JWT algorithm
 JWT_EXPIRATION_HOURS=24           # Token expiration

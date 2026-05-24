@@ -201,7 +201,7 @@
 - Full frontend testing (all pages verified)
 
 ### Test Credentials
-- **Email:** testuser123@paysible.com
+- **Email:** testuser123@pursible.com
 - **Password:** Test123!
 
 ### Test Reports
@@ -499,7 +499,7 @@
 - **useMemo Optimizations:**
   - `QuickConverter.jsx` - Memoized currency filter for 'to' select
   - Filter/map operations now cached to prevent re-computation on render
-- **Fixed:** Updated `Referrals.jsx` link from `paysible.com` to `pursible.com`
+- **Fixed:** Updated `Referrals.jsx` link from `pursible.com` to `pursible.com`
 - **All linting passed:** 0 errors
 
 ### May 13, 2026 (v1.0.5)

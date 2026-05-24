@@ -6,7 +6,7 @@ const isNode = typeof window === 'undefined';
 
 const getAppParams = () => {
   return {
-    appId: 'paysible',
+    appId: 'pursible',
     apiBaseUrl: import.meta.env.VITE_BACKEND_URL || '',
     fromUrl: isNode ? '' : window.location.href,
   }

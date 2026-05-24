@@ -42,7 +42,7 @@ export default function DevLogin() {
 
         {/* Logo */}
         <div className="text-center space-y-3">
-          <img src="/paysible_icon_white.svg" alt="Pursible" className="w-16 h-16 mx-auto" />
+          <img src="/pursible_icon_white.svg" alt="Pursible" className="w-16 h-16 mx-auto" />
           <div>
             <h1 className="text-3xl font-bold text-foreground">Pursible</h1>
             <p className="text-sm text-muted-foreground">Sign in to continue</p>

@@ -5,7 +5,7 @@ const ThemeContext = createContext();
 export function ThemeProvider({ children }) {
   const [theme, setTheme] = useState(() => {
     // Check localStorage first
-    const saved = localStorage.getItem('paysible-theme');
+    const saved = localStorage.getItem('pursible-theme');
     if (saved) return saved;
     
     // Then check system preference
@@ -25,7 +25,7 @@ export function ThemeProvider({ children }) {
     root.classList.add(theme);
     
     // Save to localStorage
-    localStorage.setItem('paysible-theme', theme);
+    localStorage.setItem('pursible-theme', theme);
   }, [theme]);
 
   // Listen for system preference changes
@@ -33,7 +33,7 @@ export function ThemeProvider({ children }) {
     const mediaQuery = window.matchMedia('(prefers-color-scheme: light)');
     
     const handleChange = (e) => {
-      const saved = localStorage.getItem('paysible-theme');
+      const saved = localStorage.getItem('pursible-theme');
       // Only auto-switch if user hasn't manually set a preference
       if (!saved) {
         setTheme(e.matches ? 'light' : 'dark');

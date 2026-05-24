@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Backend API Testing for Paysible Fintech App
+Backend API Testing for Pursible Fintech App
 Tests all critical endpoints including auth, balance, and health checks
 """
 import requests
@@ -8,7 +8,7 @@ import sys
 import json
 from datetime import datetime
 
-class PaysibleAPITester:
+class PursibleAPITester:
     def __init__(self, base_url="https://backend-api-hub-1.preview.emergentagent.com"):
         self.base_url = base_url
         self.token = None
@@ -200,7 +200,7 @@ class PaysibleAPITester:
 
     def run_all_tests(self):
         """Run all backend tests"""
-        print("🚀 Starting Paysible Backend API Tests")
+        print("🚀 Starting Pursible Backend API Tests")
         print(f"📍 Testing against: {self.base_url}")
         print("=" * 60)
 
@@ -257,7 +257,7 @@ class PaysibleAPITester:
 
 def main():
     """Main test execution"""
-    tester = PaysibleAPITester()
+    tester = PursibleAPITester()
     return tester.run_all_tests()
 
 if __name__ == "__main__":

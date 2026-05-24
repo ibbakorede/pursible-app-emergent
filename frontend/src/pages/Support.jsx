@@ -65,7 +65,7 @@ export default function Support() {
 
             {/* Email Support */}
             <a
-              href="mailto:support@paysible.com?subject=Pursible%20Support%20Request"
+              href="mailto:support@pursible.com?subject=Pursible%20Support%20Request"
               className="flex items-center gap-3.5 px-4 py-4 hover:bg-muted/50 transition-colors"
             >
               <div className="w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0 bg-purple-50">
@@ -76,7 +76,7 @@ export default function Support() {
                   <p className="text-sm font-semibold">Email Support</p>
                   <span className="flex items-center gap-1 text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-full"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />Online</span>
                 </div>
-                <p className="text-xs text-muted-foreground">support@paysible.com</p>
+                <p className="text-xs text-muted-foreground">support@pursible.com</p>
               </div>
               <ChevronRight className="w-4 h-4 text-muted-foreground" />
             </a>
@@ -93,7 +93,7 @@ export default function Support() {
               </div>
               <p className="text-sm font-medium">Terms of Service</p>
             </Link>
-            <a href="https://status.paysible.com" target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 p-4 bg-card border border-border rounded-2xl hover:bg-muted/50 transition-colors">
+            <a href="https://status.pursible.com" target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 p-4 bg-card border border-border rounded-2xl hover:bg-muted/50 transition-colors">
               <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 bg-amber-50">
                 <Zap style={{ width: '1.1rem', height: '1.1rem' }} className="text-amber-600" />
               </div>
