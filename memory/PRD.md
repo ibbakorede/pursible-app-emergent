@@ -217,7 +217,7 @@
 - **Database:** MongoDB (Emergent managed)
 
 ### Production Checklist
-- [ ] Configure custom domain
+- [x] Configure custom domain (pursible.app)
 - [ ] Add Flutterwave API keys
 - [ ] Add Dojah API keys
 - [ ] Add Bridge.xyz API keys
