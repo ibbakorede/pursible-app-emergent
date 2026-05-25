@@ -1208,28 +1208,47 @@ async def seed_demo_data():
 # ═══════════════════════════════════════════════════════════════════════════════
 
 @api_router.post("/admin/promote")
-async def promote_to_admin(data: dict, user: dict = Depends(get_admin_user)):
+async def promote_to_admin(request: Request, data: dict, user: dict = Depends(get_admin_user)):
     """Promote a user to admin role (only admins can do this)"""
     target_email = data.get("email")
+    reason = data.get("reason", "Promoted to admin")
     
     if not target_email:
         raise HTTPException(status_code=400, detail="Email is required")
     
+    # Get target user for before state
+    target_user = await db.users.find_one({"email": target_email}, {"_id": 0})
+    if not target_user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Log BEFORE mutation (fail if logging fails)
+    await audit_service.log_admin_action(
+        admin=user,
+        action_type="user.promote",
+        target_resource_type="User",
+        target_resource_id=target_user.get("id", target_email),
+        reason=reason,
+        metadata={
+            "before": {"role": target_user.get("role")},
+            "after": {"role": "admin"},
+            "target_email": target_email
+        },
+        request=request
+    )
+    
     # Promote the target user
-    result = await db.users.update_one(
+    await db.users.update_one(
         {"email": target_email},
         {"$set": {"role": "admin"}}
     )
     
-    if result.matched_count == 0:
-        raise HTTPException(status_code=404, detail="User not found")
-    
     return {"success": True, "message": f"User {target_email} is now an admin"}
 
 @api_router.post("/admin/demote")
-async def demote_from_admin(data: dict, user: dict = Depends(get_admin_user)):
+async def demote_from_admin(request: Request, data: dict, user: dict = Depends(get_admin_user)):
     """Remove admin role from a user (only admins can do this)"""
     target_email = data.get("email")
+    reason = data.get("reason", "Demoted from admin")
     
     if not target_email:
         raise HTTPException(status_code=400, detail="Email is required")
@@ -1238,13 +1257,30 @@ async def demote_from_admin(data: dict, user: dict = Depends(get_admin_user)):
     if target_email == user["email"]:
         raise HTTPException(status_code=400, detail="Cannot demote yourself")
     
-    result = await db.users.update_one(
+    # Get target user for before state
+    target_user = await db.users.find_one({"email": target_email}, {"_id": 0})
+    if not target_user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Log BEFORE mutation (fail if logging fails)
+    await audit_service.log_admin_action(
+        admin=user,
+        action_type="user.demote",
+        target_resource_type="User",
+        target_resource_id=target_user.get("id", target_email),
+        reason=reason,
+        metadata={
+            "before": {"role": target_user.get("role")},
+            "after": {"role": None},
+            "target_email": target_email
+        },
+        request=request
+    )
+    
+    await db.users.update_one(
         {"email": target_email},
         {"$unset": {"role": ""}}
     )
-    
-    if result.matched_count == 0:
-        raise HTTPException(status_code=404, detail="User not found")
     
     return {"success": True, "message": f"User {target_email} is no longer an admin"}
 
@@ -1269,6 +1305,118 @@ async def get_admin_stats(user: dict = Depends(get_admin_user)):
             "pending_kyc": pending_kyc,
             "total_transactions": total_transactions
         }
+    }
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# ADMIN KYC MANAGEMENT
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@api_router.get("/admin/kyc/pending")
+async def get_pending_kyc(user: dict = Depends(get_admin_user)):
+    """Get all pending KYC records for review (admin only)"""
+    kyc_records = await db.kyc_records.find(
+        {"status": {"$in": ["pending", "in_review"]}},
+        {"_id": 0}
+    ).sort("created_date", -1).to_list(100)
+    return {"success": True, "records": kyc_records}
+
+@api_router.post("/admin/kyc/approve")
+async def approve_kyc(request: Request, data: dict, user: dict = Depends(get_admin_user)):
+    """
+    Approve a user's KYC verification (admin only).
+    This is the proper admin endpoint - uses audit logging.
+    """
+    user_email = data.get("user_email")
+    reason = data.get("reason", "KYC documents verified and approved")
+    
+    if not user_email:
+        raise HTTPException(status_code=400, detail="user_email is required")
+    
+    # Get KYC record for before state
+    kyc_record = await kyc_service.get_kyc_record(user_email)
+    if not kyc_record:
+        raise HTTPException(status_code=404, detail="KYC record not found for this user")
+    
+    if kyc_record.get("status") == "approved":
+        raise HTTPException(status_code=400, detail="KYC is already approved")
+    
+    # Log BEFORE mutation (fail if logging fails)
+    await audit_service.log_admin_action(
+        admin=user,
+        action_type="kyc.approve",
+        target_resource_type="KYCRecord",
+        target_resource_id=kyc_record.get("id"),
+        reason=reason,
+        metadata={
+            "before": {"status": kyc_record.get("status")},
+            "after": {"status": "approved"},
+            "user_email": user_email
+        },
+        request=request
+    )
+    
+    # Perform the approval
+    success = await kyc_service.approve_kyc(user_email, reason)
+    
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to approve KYC")
+    
+    return {
+        "success": True,
+        "message": f"KYC approved for {user_email}",
+        "user_email": user_email
+    }
+
+@api_router.post("/admin/kyc/reject")
+async def reject_kyc(request: Request, data: dict, user: dict = Depends(get_admin_user)):
+    """
+    Reject a user's KYC verification (admin only).
+    This is the proper admin endpoint - uses audit logging.
+    """
+    user_email = data.get("user_email")
+    reason = data.get("reason")
+    
+    if not user_email:
+        raise HTTPException(status_code=400, detail="user_email is required")
+    
+    if not reason:
+        raise HTTPException(status_code=400, detail="reason is required for rejection")
+    
+    # Get KYC record for before state
+    kyc_record = await kyc_service.get_kyc_record(user_email)
+    if not kyc_record:
+        raise HTTPException(status_code=404, detail="KYC record not found for this user")
+    
+    if kyc_record.get("status") == "rejected":
+        raise HTTPException(status_code=400, detail="KYC is already rejected")
+    
+    # Log BEFORE mutation (fail if logging fails)
+    await audit_service.log_admin_action(
+        admin=user,
+        action_type="kyc.reject",
+        target_resource_type="KYCRecord",
+        target_resource_id=kyc_record.get("id"),
+        reason=reason,
+        metadata={
+            "before": {"status": kyc_record.get("status")},
+            "after": {"status": "rejected"},
+            "user_email": user_email,
+            "rejection_reason": reason
+        },
+        request=request
+    )
+    
+    # Perform the rejection
+    success = await kyc_service.reject_kyc(user_email, reason)
+    
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to reject KYC")
+    
+    return {
+        "success": True,
+        "message": f"KYC rejected for {user_email}",
+        "user_email": user_email,
+        "reason": reason
     }
 
 # ═══════════════════════════════════════════════════════════════════════════════

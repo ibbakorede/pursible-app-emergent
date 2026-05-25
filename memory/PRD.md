@@ -595,6 +595,26 @@
 - Enhanced test coverage (26/26 backend tests + full frontend tests)
 - Added data-testid attributes for theme toggle
 
+### May 25, 2026 (v1.1.0) - Convert Flow UI & Admin Audit
+- **ConversionInput UI Enhancements:**
+  - 25%, 50%, Max percentage chips (olive tint styling)
+  - New swap button (42×42px, dark bg, olive border, arrows-up-down icon)
+  - Refresh icon button next to rate display
+  - "Rate locks at the moment of confirmation" reassurance text
+- **ConversionConfirm UI Enhancements:**
+  - Rate expiry countdown badge (60s countdown, amber styling)
+  - Slide-to-confirm interaction (olive pill, draggable knob, keyboard accessible)
+  - "Edit swap" outline button with pencil icon
+- **Backend Changes:**
+  - Transaction references now prefixed with "PUR-" (e.g., `PUR-SW-USD-1234567-ABC123`)
+  - Admin endpoints wired to Audit Logger:
+    - `/api/admin/promote` - logs `user.promote` action
+    - `/api/admin/demote` - logs `user.demote` action
+  - New KYC admin endpoints with audit logging:
+    - `/api/admin/kyc/pending` - list pending KYC records
+    - `/api/admin/kyc/approve` - approve KYC with audit trail
+    - `/api/admin/kyc/reject` - reject KYC with audit trail
+
 ### March 26, 2026 (v1.0.0)
 - Implemented biometric login (WebAuthn)
 - Added push notifications (service worker)
