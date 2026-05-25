@@ -31,12 +31,12 @@ class TransactionService:
     
     @staticmethod
     def generate_reference(prefix: str, currency: str = "") -> str:
-        """Generate a unique transaction reference"""
+        """Generate a unique transaction reference with PUR- brand prefix"""
         timestamp = int(datetime.now().timestamp())
         unique_part = uuid.uuid4().hex[:6].upper()
         if currency:
-            return f"{prefix}-{currency}-{timestamp}-{unique_part}"
-        return f"{prefix}-{timestamp}-{unique_part}"
+            return f"PUR-{prefix}-{currency}-{timestamp}-{unique_part}"
+        return f"PUR-{prefix}-{timestamp}-{unique_part}"
     
     @staticmethod
     def get_timestamp() -> str:

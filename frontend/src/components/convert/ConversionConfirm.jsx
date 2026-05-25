@@ -1,10 +1,13 @@
 /**
  * ConversionConfirm - Confirmation step for conversions
+ * Features: Rate expiry countdown, slide-to-confirm, edit swap button
  */
 import { Button } from '@/components/ui/button';
 import CurrencyIcon from '@/components/shared/CurrencyIcon';
 import { formatCurrency } from '@/lib/currencies';
-import { ArrowLeft, ArrowRight, Loader2, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, ArrowRight, ShieldCheck, Pencil } from 'lucide-react';
+import SlideToConfirm from './SlideToConfirm';
+import RateExpiryBadge from './RateExpiryBadge';
 
 export default function ConversionConfirm({
   fromCurrency,
@@ -15,7 +18,9 @@ export default function ConversionConfirm({
   receiveAmount,
   onBack,
   onConfirm,
-  isSubmitting
+  onRefreshRates,
+  isSubmitting,
+  rateExpirySeconds = 60
 }) {
   const numAmount = Number(amount) || 0;
   const feeAmount = (numAmount * fee) / 100;
@@ -28,7 +33,8 @@ export default function ConversionConfirm({
         <div className="flex items-center gap-3">
           <button 
             onClick={onBack} 
-            className="p-2 rounded-xl bg-card border border-border hover:bg-muted transition-colors"
+            disabled={isSubmitting}
+            className="p-2 rounded-xl bg-card border border-border hover:bg-muted transition-colors disabled:opacity-50"
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
@@ -99,32 +105,29 @@ export default function ConversionConfirm({
           </div>
         </div>
 
-        {/* Action buttons */}
-        <div className="space-y-3">
-          <Button
-            onClick={onConfirm}
-            disabled={isSubmitting}
-            className="w-full py-6 text-base rounded-2xl"
-            data-testid="convert-confirm-button"
-          >
-            {isSubmitting ? (
-              <>
-                <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                Converting...
-              </>
-            ) : (
-              'Confirm Conversion'
-            )}
-          </Button>
-          <Button
-            variant="outline"
-            onClick={onBack}
-            disabled={isSubmitting}
-            className="w-full py-6 text-base rounded-2xl"
-          >
-            Go Back
-          </Button>
-        </div>
+        {/* Rate expiry countdown badge */}
+        <RateExpiryBadge 
+          expirySeconds={rateExpirySeconds}
+          onExpire={onRefreshRates}
+        />
+
+        {/* Slide to confirm */}
+        <SlideToConfirm
+          onConfirm={onConfirm}
+          isSubmitting={isSubmitting}
+        />
+
+        {/* Edit swap button */}
+        <Button
+          variant="outline"
+          onClick={onBack}
+          disabled={isSubmitting}
+          className="w-full py-5 text-sm rounded-xl flex items-center justify-center gap-2"
+          data-testid="edit-swap-btn"
+        >
+          <Pencil className="w-4 h-4" />
+          Edit swap
+        </Button>
       </div>
     </div>
   );

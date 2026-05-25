@@ -190,7 +190,9 @@ export default function ConvertFunds() {
         receiveAmount={receiveAmount}
         onBack={() => setStep('input')}
         onConfirm={() => createConversion.mutate()}
+        onRefreshRates={() => refetchRates()}
         isSubmitting={createConversion.isPending}
+        rateExpirySeconds={60}
       />
     );
   }
