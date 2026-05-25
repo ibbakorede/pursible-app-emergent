@@ -247,12 +247,13 @@ function RejectionBreakdown({ kycRecord, rejectionDetails, onResubmit }) {
                     <div 
                       className="p-3 rounded-xl text-sm"
                       style={{ 
-                        background: 'rgba(240,149,149,0.08)',
-                        border: '0.5px solid rgba(240,149,149,0.2)',
-                        color: 'rgba(255,255,255,0.8)',
+                        background: 'rgba(240,149,149,0.12)',
+                        border: '1px solid rgba(240,149,149,0.25)',
                       }}
                     >
-                      {kycRecord?.rejection_reason || 'Document verification failed. Please resubmit.'}
+                      <p className="text-red-700 dark:text-red-300">
+                        {kycRecord?.rejection_reason || 'Document verification failed. Please resubmit.'}
+                      </p>
                     </div>
                     
                     {/* Tips */}
@@ -260,11 +261,7 @@ function RejectionBreakdown({ kycRecord, rejectionDetails, onResubmit }) {
                       {tips.map((tip, tipIdx) => (
                         <div 
                           key={tipIdx}
-                          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs"
-                          style={{ 
-                            background: 'rgba(255,255,255,0.05)',
-                            color: 'rgba(255,255,255,0.7)',
-                          }}
+                          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs bg-muted text-foreground"
                         >
                           <tip.icon className="w-3 h-3" />
                           {tip.text}
@@ -273,10 +270,10 @@ function RejectionBreakdown({ kycRecord, rejectionDetails, onResubmit }) {
                     </div>
                     
                     {/* Inline guidance */}
-                    <p className="text-xs text-muted-foreground flex items-start gap-2">
-                      <Lightbulb className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" style={{ color: '#FAC775' }} />
-                      Ensure your document is clearly visible with all corners showing. Avoid shadows and reflections.
-                    </p>
+                    <div className="flex items-start gap-2 text-xs text-muted-foreground">
+                      <Lightbulb className="w-3.5 h-3.5 flex-shrink-0 mt-0.5 text-amber-500" />
+                      <p>Ensure your document is clearly visible with all corners showing. Avoid shadows and reflections.</p>
+                    </div>
                   </div>
                 )}
               </div>
