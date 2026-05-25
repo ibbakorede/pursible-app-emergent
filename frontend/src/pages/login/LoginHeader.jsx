@@ -7,8 +7,8 @@ export function LoginBackground() {
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-1/4 -left-20 w-72 h-72 bg-primary/20 rounded-full blur-[100px] animate-pulse" />
         <div
-          className="absolute bottom-1/4 -right-20 w-96 h-96 bg-emerald-500/10 rounded-full blur-[120px] animate-pulse"
-          style={{ animationDelay: '1s' }}
+          className="absolute bottom-1/4 -right-20 w-96 h-96 rounded-full blur-[120px] animate-pulse"
+          style={{ backgroundColor: 'rgba(122,140,84,0.1)', animationDelay: '1s' }}
         />
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-primary/5 rounded-full blur-[150px]" />
       </div>
@@ -45,7 +45,7 @@ export function LoginBranding() {
       {/* Feature badges */}
       <div className="flex items-center justify-center gap-3 mb-8">
         <div className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 backdrop-blur-sm border border-white/10 rounded-full">
-          <Shield className="w-3.5 h-3.5 text-emerald-400" />
+          <Shield className="w-3.5 h-3.5 text-[#97C459]" />
           <span className="text-xs text-gray-300">Secure</span>
         </div>
         <div className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 backdrop-blur-sm border border-white/10 rounded-full">

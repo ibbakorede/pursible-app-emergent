@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '@/lib/AuthContext';
 import {
   isBiometricAvailable,
@@ -9,7 +10,6 @@ import {
 } from '@/lib/biometricAuth';
 import { LoginBackground, LoginBranding } from './login/LoginHeader';
 import LoginForm from './login/LoginForm';
-import BiometricPrompt from './login/BiometricPrompt';
 
 export default function Login() {
   const { login, register, loginWithToken } = useAuth();
@@ -20,19 +20,14 @@ export default function Login() {
   const [error, setError] = useState('');
   const [biometricAvailable, setBiometricAvailable] = useState(false);
   const [biometricEnabled, setBiometricEnabled] = useState(false);
-  const [biometricUser, setBiometricUser] = useState(null);
-  const [showBiometricPrompt, setShowBiometricPrompt] = useState(false);
   const [form, setForm] = useState({ email: '', password: '', full_name: '' });
 
   useEffect(() => {
     const checkBiometric = async () => {
       const available = await isBiometricAvailable();
       const enabled = isBiometricEnabled();
-      const user = getBiometricUser();
       setBiometricAvailable(available);
       setBiometricEnabled(enabled);
-      setBiometricUser(user);
-      if (available && enabled && user) setShowBiometricPrompt(true);
     };
     checkBiometric();
   }, []);
@@ -57,7 +52,6 @@ export default function Login() {
       }
     } catch {
       setError('Biometric login failed. Please use your password.');
-      setShowBiometricPrompt(false);
     } finally {
       setBiometricLoading(false);
     }
@@ -97,45 +91,39 @@ export default function Login() {
         {/* Branding section */}
         <LoginBranding />
 
-        {/* Auth forms */}
-        {showBiometricPrompt && biometricEnabled ? (
-          <BiometricPrompt
-            biometricUser={biometricUser}
-            biometricLoading={biometricLoading}
-            biometricTypeName={biometricTypeName}
-            onBiometricLogin={handleBiometricLogin}
-            onUsePassword={() => setShowBiometricPrompt(false)}
-          />
-        ) : (
-          <LoginForm
-            isLogin={isLogin}
-            form={form}
-            setForm={setForm}
-            showPassword={showPassword}
-            setShowPassword={setShowPassword}
-            loading={loading}
-            error={error}
-            biometricAvailable={biometricAvailable}
-            biometricEnabled={biometricEnabled}
-            showBiometricPrompt={showBiometricPrompt}
-            biometricTypeName={biometricTypeName}
-            onSubmit={handleSubmit}
-            onToggleMode={handleToggleMode}
-            onShowBiometric={() => setShowBiometricPrompt(true)}
-          />
-        )}
+        {/* Auth form */}
+        <LoginForm
+          isLogin={isLogin}
+          form={form}
+          setForm={setForm}
+          showPassword={showPassword}
+          setShowPassword={setShowPassword}
+          loading={loading}
+          error={error}
+          biometricAvailable={biometricAvailable}
+          biometricEnabled={biometricEnabled}
+          biometricTypeName={biometricTypeName}
+          onSubmit={handleSubmit}
+          onToggleMode={handleToggleMode}
+          onBiometricLogin={handleBiometricLogin}
+          biometricLoading={biometricLoading}
+        />
 
-        {/* Footer */}
-        <p className="text-center text-gray-600 text-xs mt-8">
-          By continuing, you agree to our{' '}
-          <a href="/legal" className="text-gray-500 hover:text-white transition-colors">
-            Terms of Service
-          </a>{' '}
-          and{' '}
-          <a href="/legal" className="text-gray-500 hover:text-white transition-colors">
-            Privacy Policy
-          </a>
-        </p>
+        {/* Terms/Privacy Footer */}
+        <div className="text-center mt-8">
+          <p className="text-[11px]" style={{ color: 'rgba(255,255,255,0.45)' }}>
+            By continuing, you agree to our
+          </p>
+          <p className="text-[11px]" style={{ color: 'rgba(255,255,255,0.45)' }}>
+            <Link to="/legal" className="font-medium hover:opacity-80" style={{ color: '#7A8C54' }}>
+              Terms of Service
+            </Link>
+            {' and '}
+            <Link to="/legal" className="font-medium hover:opacity-80" style={{ color: '#7A8C54' }}>
+              Privacy Policy
+            </Link>
+          </p>
+        </div>
       </div>
     </div>
   );

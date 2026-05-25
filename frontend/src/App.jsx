@@ -8,6 +8,7 @@ import PageNotFound from './lib/PageNotFound';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import { ThemeProvider } from '@/lib/ThemeContext';
 import Login from '@/pages/Login';
+import ForgotPassword from '@/pages/ForgotPassword';
 import Onboarding from '@/pages/Onboarding';
 import RouteTransition from '@/components/layout/RouteTransition';
 import OfflineQueueStatus from '@/components/shared/OfflineQueueStatus';
@@ -135,7 +136,12 @@ const AuthenticatedApp = () => {
 
   // Show login if not authenticated
   if (!isAuthenticated) {
-    return <Login />;
+    return (
+      <Routes>
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="*" element={<Login />} />
+      </Routes>
+    );
   }
 
   // Show onboarding if user has no full_name
