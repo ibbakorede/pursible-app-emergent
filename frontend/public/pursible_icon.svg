@@ -2,13 +2,13 @@
   <!-- Background -->
   <rect width="1024" height="1024" rx="230" fill="#1a1a0e"/>
   <!-- Olive green stem -->
-  <rect x="268" y="212" width="168" height="600" rx="84" fill="#7a8c1e"/>
+  <rect x="268" y="212" width="168" height="600" rx="84" fill="#5C6B3E"/>
   <!-- Dark teal bowl -->
   <circle cx="556" cy="462" r="272" fill="#2d4a52"/>
   <!-- Cutout to make D shape -->
   <rect x="268" y="212" width="288" height="420" fill="#1a1a0e"/>
   <!-- Restore stem -->
-  <rect x="268" y="212" width="168" height="600" rx="84" fill="#7a8c1e"/>
+  <rect x="268" y="212" width="168" height="600" rx="84" fill="#5C6B3E"/>
   <!-- Inner circle cutout -->
   <circle cx="556" cy="462" r="166" fill="#1a1a0e"/>
 </svg>

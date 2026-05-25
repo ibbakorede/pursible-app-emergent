@@ -306,7 +306,7 @@ TECHNICAL IMPLEMENTATION DETAILS
 
 5. COLOR CONTRAST COMPLIANCE
    ──────────────────────────
-   • Primary color (#6B9D3E / hsl(82 40% 38%)): ≥4.5:1 against background
+   • Primary color (#5C6B3E / hsl(82 40% 38%)): ≥4.5:1 against background
    • Text on cards: foreground (#F2F2F2 / hsl(0 0% 95%)) ≥4.5:1
    • Interactive elements: Primary color for focus rings
    • Status badges: Color + icon + text (e.g., green dot + "Active" text)
@@ -337,7 +337,7 @@ KNOWN LIMITATIONS & EXCEPTIONS
 ✓ No exceptions: All WCAG 2.1 AA requirements met without exemptions.
 
 Note: Enhanced color contrast (WCAG 2.1 AAA ≥7:1) not required for AA but
-considered in design where feasible. Primary color #6B9D3E achieves AA minimums.
+considered in design where feasible. Primary color #5C6B3E achieves AA minimums.
 
 ─────────────────────────────────────────────────────────────────────────────
 TESTING METHODOLOGY

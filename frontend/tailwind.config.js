@@ -20,6 +20,11 @@ module.exports = {
   			sm: 'calc(var(--radius) - 4px)'
   		},
   		colors: {
+  			/* Brand colors - single source of truth */
+  			'brand': {
+  				DEFAULT: '#5C6B3E',
+  				light: '#7A8C54',
+  			},
   			background: 'hsl(var(--background))',
   			foreground: 'hsl(var(--foreground))',
   			card: {
