@@ -27,6 +27,7 @@ export default function ConvertFunds() {
   const [amount, setAmount] = useState('');
   const [step, setStep] = useState('input');
   const [pickingFor, setPickingFor] = useState(null);
+  const [lastTransaction, setLastTransaction] = useState(null);
   const queryClient = useQueryClient();
   const navigate = useNavigate();
 
@@ -129,10 +130,11 @@ export default function ConvertFunds() {
       queryClient.setQueryData(['wallets'], optimisticWallets);
       return { previousWallets };
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
       triggerHaptic('success');
       queryClient.invalidateQueries({ queryKey: ['wallets'] });
       queryClient.invalidateQueries({ queryKey: ['transactions'] });
+      setLastTransaction(result.transaction);
       setStep('success');
     },
     onError: (err, _, context) => {
@@ -173,7 +175,8 @@ export default function ConvertFunds() {
         amount={amount}
         receiveAmount={receiveAmount}
         rate={rate}
-        onNewSwap={() => { setStep('input'); setAmount(''); }}
+        transaction={lastTransaction}
+        onNewSwap={() => { setStep('input'); setAmount(''); setLastTransaction(null); }}
       />
     );
   }
