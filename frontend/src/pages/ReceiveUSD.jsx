@@ -118,6 +118,7 @@ function CopyField({ label, value, fieldKey, copiedField, onCopy }) {
 
 function AccountDetails({ account, userEmail }) {
   const [copiedField, setCopiedField] = useState(null);
+  const [copiedAll, setCopiedAll] = useState(false);
   const info = TYPE_INFO[account.type] || {};
   const fields = (account.fields || []).filter(f => f.value).map((f, idx) => ({ ...f, _id: idx }));
 
@@ -131,7 +132,9 @@ function AccountDetails({ account, userEmail }) {
   const copyAll = () => {
     const text = fields.map(f => `${f.label}: ${f.value}`).join('\n');
     navigator.clipboard.writeText(text);
+    setCopiedAll(true);
     toast.success('All details copied!');
+    setTimeout(() => setCopiedAll(false), 2000);
   };
 
   const shareDetails = async () => {
@@ -198,15 +201,24 @@ function AccountDetails({ account, userEmail }) {
       <div className="flex gap-3">
         <button
           onClick={copyAll}
-          className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl font-semibold text-sm transition-colors"
+          className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl font-semibold text-sm transition-all"
           style={{
-            background: 'transparent',
-            border: '1px solid rgba(255,255,255,0.15)',
-            color: 'rgba(255,255,255,0.8)',
+            background: copiedAll ? 'rgba(122,140,84,0.18)' : 'transparent',
+            border: copiedAll ? '1px solid rgba(122,140,84,0.4)' : '1px solid rgba(255,255,255,0.15)',
+            color: copiedAll ? '#97C459' : 'rgba(255,255,255,0.8)',
           }}
         >
-          <Copy className="w-4 h-4" />
-          Copy all
+          {copiedAll ? (
+            <>
+              <Check className="w-4 h-4" />
+              Copied
+            </>
+          ) : (
+            <>
+              <Copy className="w-4 h-4" />
+              Copy all
+            </>
+          )}
         </button>
         <button
           onClick={shareDetails}
