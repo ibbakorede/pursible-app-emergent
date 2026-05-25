@@ -1,4 +1,4 @@
-import { Copy, Share2, ArrowLeft, CheckCircle, Clock, Shield, Zap, AlertCircle, ArrowDownToLine, Info } from 'lucide-react';
+import { Copy, Share2, ArrowLeft, Check, Clock, Shield, Zap, AlertCircle, ArrowDownToLine, Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Link } from 'react-router-dom';
 import { useState, useEffect } from 'react';
@@ -6,6 +6,13 @@ import { toast } from 'sonner';
 import { useQuery } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
+
+// Channel color configuration
+const CHANNEL_COLORS = {
+  usd_wire: { color: '#85B7EB', bg: 'rgba(133,183,235,0.12)' },
+  stable_wallet: { color: '#5DCAA5', bg: 'rgba(93,202,165,0.12)' },
+  ngn_bank: { color: '#97C459', bg: 'rgba(151,196,89,0.12)' },
+};
 
 const TYPE_INFO = {
   usd_wire: {
@@ -16,9 +23,6 @@ const TYPE_INFO = {
     badge: '1–3 business days',
     badgeColor: 'bg-blue-50 text-blue-700 border-blue-200',
     headerGradient: 'from-blue-600 to-blue-800',
-    accentColor: 'text-blue-600',
-    accentBg: 'bg-blue-50',
-    borderActive: 'border-blue-500 bg-blue-50/50',
   },
   stable_wallet: {
     title: 'USDT / Stablecoin',
@@ -28,9 +32,6 @@ const TYPE_INFO = {
     badge: 'Near instant',
     badgeColor: 'bg-teal-50 text-teal-700 border-teal-200',
     headerGradient: 'from-teal-500 to-emerald-700',
-    accentColor: 'text-teal-600',
-    accentBg: 'bg-teal-50',
-    borderActive: 'border-teal-500 bg-teal-50/50',
     useSVG: true,
   },
   ngn_bank: {
@@ -41,9 +42,6 @@ const TYPE_INFO = {
     badge: 'Same day',
     badgeColor: 'bg-green-50 text-green-700 border-green-200',
     headerGradient: 'from-green-600 to-green-800',
-    accentColor: 'text-green-600',
-    accentBg: 'bg-green-50',
-    borderActive: 'border-green-500 bg-green-50/50',
   },
 };
 
@@ -56,19 +54,26 @@ const TetherLogo = ({ size = 32 }) => (
 
 function ChannelTab({ account, isActive, onClick }) {
   const info = TYPE_INFO[account.type] || {};
+  const colors = CHANNEL_COLORS[account.type] || { color: '#97C459', bg: 'rgba(151,196,89,0.12)' };
+  
   return (
     <button
       onClick={onClick}
-      className={`flex flex-col items-center gap-2 p-4 rounded-2xl border-2 transition-all flex-1 min-w-0 ${
-        isActive ? info.borderActive || 'border-primary bg-primary/5' : 'border-border bg-card hover:border-muted-foreground/30 hover:bg-muted/30'
-      }`}
+      className="flex flex-col items-center gap-2 p-4 rounded-2xl transition-all flex-1 min-w-0"
+      style={{
+        border: isActive ? `1.5px solid ${colors.color}` : '0.5px solid rgba(255,255,255,0.1)',
+        background: isActive ? colors.bg : 'rgba(255,255,255,0.03)',
+      }}
     >
       <div className="w-12 h-12 rounded-full flex items-center justify-center overflow-hidden bg-white shadow-sm border border-border">
         {account.type === 'stable_wallet'
           ? <TetherLogo size={48} />
           : <span className="text-2xl leading-none">{info.emoji}</span>}
       </div>
-      <span className={`text-xs font-semibold ${isActive ? (info.accentColor || 'text-primary') : 'text-muted-foreground'}`}>
+      <span 
+        className="text-xs font-semibold"
+        style={{ color: isActive ? colors.color : 'rgba(255,255,255,0.55)' }}
+      >
         {info.sublabel}
       </span>
     </button>
@@ -85,20 +90,36 @@ function CopyField({ label, value, fieldKey, copiedField, onCopy }) {
       </div>
       <button
         onClick={() => onCopy(fieldKey, value)}
-        className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all ${
-          isCopied ? 'bg-emerald-100 text-emerald-700' : 'bg-muted hover:bg-muted/80 text-muted-foreground hover:text-foreground'
-        }`}
+        className="flex-shrink-0 flex items-center gap-1.5 transition-all"
+        style={{
+          padding: '6px 10px',
+          borderRadius: '9px',
+          background: isCopied ? 'rgba(122,140,84,0.18)' : 'rgba(255,255,255,0.05)',
+          color: isCopied ? '#97C459' : 'rgba(255,255,255,0.7)',
+          fontSize: '12px',
+          fontWeight: 600,
+        }}
       >
-        {isCopied ? <><CheckCircle className="w-3.5 h-3.5" /> Copied</> : <><Copy className="w-3.5 h-3.5" /> Copy</>}
+        {isCopied ? (
+          <>
+            <Check className="w-3.5 h-3.5" />
+            Copied
+          </>
+        ) : (
+          <>
+            <Copy className="w-3.5 h-3.5" />
+            Copy
+          </>
+        )}
       </button>
     </div>
   );
 }
 
-function AccountDetails({ account }) {
-   const [copiedField, setCopiedField] = useState(null);
-   const info = TYPE_INFO[account.type] || {};
-   const fields = (account.fields || []).filter(f => f.value).map((f, idx) => ({ ...f, _id: idx }));
+function AccountDetails({ account, userEmail }) {
+  const [copiedField, setCopiedField] = useState(null);
+  const info = TYPE_INFO[account.type] || {};
+  const fields = (account.fields || []).filter(f => f.value).map((f, idx) => ({ ...f, _id: idx }));
 
   const copyToClipboard = (key, value) => {
     navigator.clipboard.writeText(value);
@@ -111,6 +132,21 @@ function AccountDetails({ account }) {
     const text = fields.map(f => `${f.label}: ${f.value}`).join('\n');
     navigator.clipboard.writeText(text);
     toast.success('All details copied!');
+  };
+
+  const shareDetails = async () => {
+    const text = `${info.title}\n\n${fields.map(f => `${f.label}: ${f.value}`).join('\n')}`;
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: info.title, text });
+      } catch (err) {
+        // User cancelled or error
+        copyAll();
+      }
+    } else {
+      copyAll();
+      toast.success('Details copied (share not supported)');
+    }
   };
 
   return (
@@ -141,14 +177,8 @@ function AccountDetails({ account }) {
 
       {/* Fields card */}
       <div className="bg-card border border-border rounded-2xl overflow-hidden">
-        <div className="px-5 py-3.5 bg-muted/30 border-b border-border flex items-center justify-between">
+        <div className="px-5 py-3.5 bg-muted/30 border-b border-border">
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Account Details</p>
-          <button
-            onClick={copyAll}
-            className="flex items-center gap-1.5 text-xs font-semibold text-primary bg-primary/10 hover:bg-primary/20 px-3 py-1.5 rounded-lg transition-colors"
-          >
-            <Share2 className="w-3.5 h-3.5" /> Copy All
-          </button>
         </div>
         <div className="divide-y divide-border">
           {fields.map(({ _id, key, label, value }) => (
@@ -164,6 +194,66 @@ function AccountDetails({ account }) {
         </div>
       </div>
 
+      {/* Copy all + Share button row */}
+      <div className="flex gap-3">
+        <button
+          onClick={copyAll}
+          className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl font-semibold text-sm transition-colors"
+          style={{
+            background: 'transparent',
+            border: '1px solid rgba(255,255,255,0.15)',
+            color: 'rgba(255,255,255,0.8)',
+          }}
+        >
+          <Copy className="w-4 h-4" />
+          Copy all
+        </button>
+        <button
+          onClick={shareDetails}
+          className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl font-semibold text-sm transition-colors text-white"
+          style={{ background: '#5C6B3E' }}
+        >
+          <Share2 className="w-4 h-4" />
+          Share
+        </button>
+      </div>
+
+      {/* Wire reference info banner */}
+      {account.type === 'usd_wire' && userEmail && (
+        <div 
+          className="flex items-start gap-3"
+          style={{
+            background: 'rgba(239,159,39,0.06)',
+            border: '0.5px solid rgba(239,159,39,0.25)',
+            borderRadius: '12px',
+            padding: '10px 14px',
+          }}
+        >
+          <Info className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: '#FAC775' }} />
+          <p className="text-xs" style={{ color: 'rgba(255,255,255,0.7)' }}>
+            Use your registered email <span style={{ fontFamily: 'JetBrains Mono, monospace', color: '#FAC775' }}>{userEmail}</span> as the wire reference.
+          </p>
+        </div>
+      )}
+
+      {/* NGN reference info banner */}
+      {account.type === 'ngn_bank' && userEmail && (
+        <div 
+          className="flex items-start gap-3"
+          style={{
+            background: 'rgba(239,159,39,0.06)',
+            border: '0.5px solid rgba(239,159,39,0.25)',
+            borderRadius: '12px',
+            padding: '10px 14px',
+          }}
+        >
+          <Info className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: '#FAC775' }} />
+          <p className="text-xs" style={{ color: 'rgba(255,255,255,0.7)' }}>
+            Use your registered email <span style={{ fontFamily: 'JetBrains Mono, monospace', color: '#FAC775' }}>{userEmail}</span> as the payment reference.
+          </p>
+        </div>
+      )}
+
       {/* Warning for stablecoin */}
       {account.type === 'stable_wallet' && (
         <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3.5">
@@ -172,14 +262,6 @@ function AccountDetails({ account }) {
             <p className="text-xs font-semibold text-amber-800 mb-0.5">Network Warning</p>
             <p className="text-xs text-amber-700">Only send USDT or USDC on the correct network. Sending on the wrong network may result in permanent loss of funds.</p>
           </div>
-        </div>
-      )}
-
-      {/* Reference note for NGN */}
-      {account.type === 'ngn_bank' && (
-        <div className="flex items-start gap-3 bg-blue-50 border border-blue-200 rounded-xl px-4 py-3.5">
-          <Info className="w-4 h-4 text-blue-600 flex-shrink-0 mt-0.5" />
-          <p className="text-xs text-blue-700">Use your registered email address as the payment reference so we can identify your deposit.</p>
         </div>
       )}
     </div>
@@ -217,10 +299,9 @@ export default function ReceiveUSD() {
   });
 
   // Overlay real provider fields onto the admin-configured DepositAccount record.
-  // Stablecoin (stable_wallet) keeps its admin-configured fields unchanged.
   const resolveAccountFields = (account) => {
     if (!account) return account;
-    if (account.type === 'usd_wire' && usdDepositData?.success) {
+    if (account.type === 'usd_wire' && usdDepositData?.success && usdDepositData?.depositDetails) {
       const d = usdDepositData.depositDetails;
       return {
         ...account,
@@ -233,7 +314,7 @@ export default function ReceiveUSD() {
         ].filter(f => f.value),
       };
     }
-    if (account.type === 'ngn_bank' && ngnDepositData?.success) {
+    if (account.type === 'ngn_bank' && ngnDepositData?.success && ngnDepositData?.depositDetails) {
       const d = ngnDepositData.depositDetails;
       return {
         ...account,
@@ -301,18 +382,18 @@ export default function ReceiveUSD() {
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Choose deposit method</p>
               <div className="flex gap-3">
                 {accounts.map((account) => (
-                           <ChannelTab
-                             key={account.id}
-                             account={account}
-                             isActive={effectiveType === account.type}
-                             onClick={() => setSelectedType(account.type)}
-                           />
-                         ))}
+                  <ChannelTab
+                    key={account.id}
+                    account={account}
+                    isActive={effectiveType === account.type}
+                    onClick={() => setSelectedType(account.type)}
+                  />
+                ))}
               </div>
             </div>
 
             {/* Account details */}
-            {selectedAccount && <AccountDetails account={selectedAccount} />}
+            {selectedAccount && <AccountDetails account={selectedAccount} userEmail={user?.email} />}
 
             {/* How it works */}
             <div className="bg-card border border-border rounded-2xl overflow-hidden">
