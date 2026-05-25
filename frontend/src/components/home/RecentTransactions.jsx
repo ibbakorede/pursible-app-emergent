@@ -1,9 +1,46 @@
 import { Link } from 'react-router-dom';
-import { ArrowRight } from 'lucide-react';
+import { ArrowRight, ArrowLeftRight, ArrowDownLeft, ArrowUpRight } from 'lucide-react';
 import StatusBadge from '@/components/shared/StatusBadge';
-import CurrencyIcon from '@/components/shared/CurrencyIcon';
 import { formatCurrency } from '@/lib/currencies';
 import { format } from 'date-fns';
+
+// Transaction type to color mapping
+const txTypeStyles = {
+  conversion: {
+    bgColor: 'rgba(29,158,117,0.15)',  // teal tint
+    iconColor: '#1D9E75',
+    Icon: ArrowLeftRight,
+  },
+  withdrawal: {
+    bgColor: 'rgba(127,119,221,0.15)', // purple tint
+    iconColor: '#7F77DD',
+    Icon: ArrowUpRight,
+  },
+  deposit: {
+    bgColor: 'rgba(55,138,221,0.15)',  // blue tint
+    iconColor: '#378ADD',
+    Icon: ArrowDownLeft,
+  },
+  receive: {
+    bgColor: 'rgba(55,138,221,0.15)',  // blue tint (same as deposit)
+    iconColor: '#378ADD',
+    Icon: ArrowDownLeft,
+  },
+};
+
+function TransactionIcon({ type, currency }) {
+  const style = txTypeStyles[type] || txTypeStyles.deposit;
+  const { Icon, bgColor, iconColor } = style;
+  
+  return (
+    <div 
+      className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+      style={{ backgroundColor: bgColor }}
+    >
+      <Icon className="w-5 h-5" style={{ color: iconColor }} />
+    </div>
+  );
+}
 
 export default function RecentTransactions({ transactions }) {
   return (
@@ -18,7 +55,10 @@ export default function RecentTransactions({ transactions }) {
         {transactions.length > 0 ? (
           transactions.slice(0, 5).map(tx => (
             <Link key={tx.id} to={`/transactions/${tx.id}`} className="flex items-center gap-3 p-4 hover:bg-muted/50 transition-colors">
-              <CurrencyIcon currency={tx.type === 'withdrawal' ? tx.from_currency : tx.to_currency || tx.from_currency} size="sm" />
+              <TransactionIcon 
+                type={tx.type} 
+                currency={tx.type === 'withdrawal' ? tx.from_currency : tx.to_currency || tx.from_currency} 
+              />
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-foreground truncate capitalize">{tx.type}</p>
                 <p className="text-xs text-muted-foreground">{tx.created_date ? format(new Date(tx.created_date), 'MMM d, h:mm a') : ''}</p>

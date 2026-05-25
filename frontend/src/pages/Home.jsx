@@ -111,15 +111,25 @@ export default function Home() {
 
       {/* KYC Banner */}
       {(!kycRecord || kycRecord.status !== 'approved') && (
-        <Link to="/kyc" className="flex items-center gap-3 p-4 bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-2xl hover:from-amber-100 transition-colors">
-          <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center flex-shrink-0">
-            <Shield className="w-5 h-5 text-amber-600" />
+        <Link 
+          to="/kyc" 
+          className="flex items-center gap-3 p-4 rounded-2xl transition-colors hover:opacity-90"
+          style={{
+            backgroundColor: 'rgba(122,140,84,0.08)',
+            border: '0.5px solid rgba(122,140,84,0.3)',
+          }}
+        >
+          <div 
+            className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+            style={{ backgroundColor: 'rgba(122,140,84,0.2)' }}
+          >
+            <Shield className="w-5 h-5" style={{ color: '#7A8C54' }} />
           </div>
           <div className="flex-1">
-            <p className="text-sm font-semibold text-amber-900">Complete your verification</p>
-            <p className="text-xs text-amber-700">Verify identity to unlock all features</p>
+            <p className="text-sm font-semibold text-foreground">Complete your verification</p>
+            <p className="text-xs text-muted-foreground">Verify identity to unlock all features</p>
           </div>
-          <ChevronRight className="w-4 h-4 text-amber-600" />
+          <ChevronRight className="w-4 h-4" style={{ color: '#7A8C54' }} />
         </Link>
       )}
 
