@@ -63,16 +63,24 @@ export default function CurrencyAmountInput({
           <span>{validationError}</span>
         </div>
       )}
-      {/* Quick percentage buttons */}
+      {/* Percentage chips: 25%, 50%, Max */}
       {showQuickButtons && balance > 0 && !readOnly && (
         <div className="flex gap-2">
-          {[25, 50, 75, 100].map(pct => (
+          {[
+            { label: '25%', value: 0.25 },
+            { label: '50%', value: 0.50 },
+            { label: 'Max', value: 1.0 }
+          ].map(({ label, value }) => (
             <button
-              key={pct}
-              onClick={() => onAmountChange(String((balance * pct / 100).toFixed(6)))}
-              className="flex-1 py-1.5 text-xs font-semibold bg-muted hover:bg-muted/80 rounded-lg transition-colors"
+              key={label}
+              onClick={() => onAmountChange(String((balance * value).toFixed(6)))}
+              className="px-2 py-0.5 text-[10px] font-semibold rounded-[6px] transition-colors hover:opacity-80"
+              style={{
+                background: 'rgba(122,140,84,0.15)',
+                color: '#97C459'
+              }}
             >
-              {pct}%
+              {label}
             </button>
           ))}
         </div>
